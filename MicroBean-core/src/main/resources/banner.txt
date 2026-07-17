@@ -21,6 +21,6 @@ Auteur (inféré)...: ${author}
 Description.......: Micro-framework léger pour découverte et injection de beans
                     via annotations (@Service, @Adapter, @Configuration, @Bean,
                     @EntryPointService...)
-Repository........: (non renseigné dans le POM)
+Repository........: ${repository.url}
 Website...........: (non renseigné)
 ================================================================================
