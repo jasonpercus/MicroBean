@@ -1,0 +1,7 @@
+{
+  "database": {
+    "max-pool-size": 10,
+    "enabled": true,
+  }
+}
+

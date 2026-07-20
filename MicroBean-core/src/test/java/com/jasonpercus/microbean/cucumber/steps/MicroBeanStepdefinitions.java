@@ -37,6 +37,7 @@ import com.jasonpercus.microbean.MicroBean;
 import com.jasonpercus.microbean.api.ApplicationEntryPoint;
 import com.jasonpercus.microbean.api.Condition;
 import com.jasonpercus.microbean.api.EntryPointService;
+import com.jasonpercus.microbean.api.Environment;
 import com.jasonpercus.microbean.api.LifecycleEntryPoint;
 import com.jasonpercus.microbean.api.MicroBeanApplication;
 import com.jasonpercus.microbean.api.OS;
@@ -194,6 +195,7 @@ public class MicroBeanStepdefinitions {
     @And("un consumer de Context est défini avec l'action {string}")
     public void un_consumer_de_context_est_defini(String action) {
         contextConsumer = context -> {
+            this.context = context;
             Runnable consumerAction = getExecutedContextConsumer(action);
             if (consumerAction != null)
                 consumerAction.run();
@@ -262,8 +264,10 @@ public class MicroBeanStepdefinitions {
     @When("j'exécute le framework MicroBean")
     public void execution_du_framework_microbean() {
         when(() -> {
-            MicroBean.setEnabledDebugMicroBean(true);
-            MicroBean.run(appClass, contextConsumer, args, entryPoints);
+            caughtException = ThrowableAssert.catchThrowable(() -> {
+                MicroBean.setEnabledDebugMicroBean(true);
+                MicroBean.run(appClass, contextConsumer, args, entryPoints);
+            });
         }, () -> {
             if (entryPointsWithLongRunning())
                 output.restore(5000);
@@ -692,7 +696,6 @@ public class MicroBeanStepdefinitions {
                 .orElse(null);
 
         assertThat(threadName).isNotNull();
-        assertThat(threadName).isEqualTo(threadName);
         assertThat(threadName).isNotEqualToIgnoringCase("main");
 
         String expectedOutput = "%s is running on thread [%s]".formatted(entryPointName, threadName);
@@ -936,6 +939,13 @@ public class MicroBeanStepdefinitions {
     private Runnable getExecutedContextConsumer(String action) {
         if ("EXECUTED".equals(action)) {
             return () -> System.out.println("Consumer de Context exécuté");
+        } else if ("PRINT_CONFIG_PROPERTIES".equals(action)) {
+            return () -> {
+                Environment environment = context.getBean(Environment.class);
+                System.out.println("CONFIG:server.host-name=" + environment.getProperty("server.host-name"));
+                System.out.println("CONFIG:server.port=" + environment.getProperty("server.port"));
+                System.out.println("CONFIG:database.max-pool-size=" + environment.getProperty("database.max-pool-size"));
+            };
         } else {
             return null;
         }
@@ -1035,6 +1045,14 @@ public class MicroBeanStepdefinitions {
             }
             case "ContextContract" -> {
                 return C_Fixtures.Contract.class.getName();
+            }
+            case "ValidEntryPointInitializer",
+                 "ValidAppInitializer",
+                 "AppWithConfigurationPropertiesInitializer",
+                 "AppWithInvalidConfigurationExtensionInitializer",
+                 "AppWithMissingConfigurationInitializer",
+                 "AppWithInvalidJsonConfigurationInitializer" -> {
+                return "com.jasonpercus.microbean.infrastructure.run.initializer." + className;
             }
         }
 

@@ -11,13 +11,25 @@ import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_ENTRYPO
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_SERVICES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.jasonpercus.microbean.api.Environment;
 import com.jasonpercus.microbean.api.ApplicationEntryPoint;
+import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithConfigurationPropertiesInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithExplicitScanPackagesInitializer;
+import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithInvalidConfigurationExtensionInitializer;
+import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithInvalidJsonConfigurationInitializer;
+import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithMissingConfigurationInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.InvalidAppAnnotatedAsEntryPointInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.NotAnnotatedAppInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.NotAnnotatedEntryPointInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.ValidAppInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.ValidEntryPointInitializer;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -184,6 +196,263 @@ class InitializerTest {
         assertThat(result).isFalse();
     }
 
+    @Test
+    @DisplayName("Doit charger et aplatir les propriétés YAML et JSON")
+    void doit_charger_et_aplatir_les_proprietes_yaml_et_json() {
+
+        // Given
+        Initializer initializer = newInitializer(AppWithConfigurationPropertiesInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        // When
+        initializer.treatConfigurationProperties(environment);
+
+        // Then
+        assertThat(environment.getProperties()).containsKeys(
+                "server.host-name",
+                "server.port",
+                "feature.metrics-enabled",
+                "database.max-pool-size",
+                "database.enabled"
+        );
+        assertThat(environment.getProperty("server.host-name")).isEqualTo("localhost");
+        assertThat(environment.getProperty("server.port")).isEqualTo(8080);
+        assertThat(environment.getProperty("database.max-pool-size")).isEqualTo(10);
+        assertThat(environment.getProperty("database.enabled")).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("Doit ignorer les propriétés de configuration quand l'annotation n'en déclare aucune")
+    void doit_ignorer_les_proprietes_de_configuration_quand_l_annotation_n_en_declare_aucune() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        // When
+        initializer.treatConfigurationProperties(environment);
+
+        // Then
+        assertThat(environment.getProperties()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Doit echouer au chargement des propriétés quand l'extension du fichier est invalide")
+    void doit_echouer_au_chargement_des_proprietes_quand_l_extension_du_fichier_est_invalide() {
+
+        // Given
+        Initializer initializer = newInitializer(AppWithInvalidConfigurationExtensionInitializer.class);
+
+        // When & Then
+        assertThatThrownBy(() -> initializer.treatConfigurationProperties(new Environment(new String[0])))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Invalid configuration properties file")
+                .hasMessageContaining("initializer/application-config.txt");
+    }
+
+    @Test
+    @DisplayName("Doit echouer au chargement des propriétés quand le fichier est absent")
+    void doit_echouer_au_chargement_des_proprietes_quand_le_fichier_est_absent() {
+
+        // Given
+        Initializer initializer = newInitializer(AppWithMissingConfigurationInitializer.class);
+
+        // When & Then
+        assertThatThrownBy(() -> initializer.treatConfigurationProperties(new Environment(new String[0])))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Configuration properties file not found")
+                .hasMessageContaining("initializer/missing-config.yaml");
+    }
+
+    @Test
+    @DisplayName("Doit echouer au chargement des propriétés quand le JSON est invalide")
+    void doit_echouer_au_chargement_des_proprietes_quand_le_json_est_invalide() {
+
+        // Given
+        Initializer initializer = newInitializer(AppWithInvalidJsonConfigurationInitializer.class);
+
+        // When & Then
+        assertThatThrownBy(() -> initializer.treatConfigurationProperties(new Environment(new String[0])))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to load configuration properties")
+                .hasMessageContaining("initializer/application-invalid.json")
+                .hasCauseInstanceOf(Exception.class);
+    }
+
+    @Test
+    @DisplayName("Doit créer un ObjectMapper JSON avec stratégie KEBAB_CASE")
+    void doit_creer_un_objectmapper_json_avec_strategie_kebab_case() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When
+        ObjectMapper objectMapper = initializer.createObjectMapper("initializer/application-config.json");
+
+        // Then
+        assertThat(objectMapper.getFactory()).isNotInstanceOf(YAMLFactory.class);
+        assertThat(objectMapper.getPropertyNamingStrategy()).isEqualTo(PropertyNamingStrategies.KEBAB_CASE);
+    }
+
+    @Test
+    @DisplayName("Doit créer un ObjectMapper YAML avec stratégie KEBAB_CASE")
+    void doit_creer_un_objectmapper_yaml_avec_strategie_kebab_case() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When
+        ObjectMapper objectMapper = initializer.createObjectMapper("initializer/application-config.yaml");
+
+        // Then
+        assertThat(objectMapper.getFactory()).isInstanceOf(YAMLFactory.class);
+        assertThat(objectMapper.getPropertyNamingStrategy()).isEqualTo(PropertyNamingStrategies.KEBAB_CASE);
+    }
+
+    @Test
+    @DisplayName("Doit valider et retourner l'URL d'un fichier de configuration existant")
+    void doit_valider_et_retourner_l_url_d_un_fichier_de_configuration_existant() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When
+        URL url = initializer.checkConfigurationProperties("initializer/application-config.yaml");
+
+        // Then
+        assertThat(url).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Doit echouer si le chemin de configuration est null ou vide")
+    void doit_echouer_si_le_chemin_de_configuration_est_null_ou_vide() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When & Then
+        assertThatThrownBy(() -> initializer.checkConfigurationProperties(null))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Invalid path for properties file");
+
+        assertThatThrownBy(() -> initializer.checkConfigurationProperties(""))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Invalid path for properties file");
+    }
+
+    @Test
+    @DisplayName("Doit echouer si le fichier de configuration est introuvable")
+    void doit_echouer_si_le_fichier_de_configuration_est_introuvable() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When & Then
+        assertThatThrownBy(() -> initializer.checkConfigurationProperties("initializer/missing-config.yaml"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Configuration properties file not found")
+                .hasMessageContaining("initializer/missing-config.yaml");
+    }
+
+    @Test
+    @DisplayName("Doit echouer si le fichier existe mais n'est ni YAML ni JSON")
+    void doit_echouer_si_le_fichier_existe_mais_n_est_ni_yaml_ni_json() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When & Then
+        assertThatThrownBy(() -> initializer.checkConfigurationProperties("initializer/application-config.txt"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Invalid configuration properties file")
+                .hasMessageContaining("initializer/application-config.txt");
+    }
+
+    @Test
+    @DisplayName("Doit aplatir récursivement les propriétés imbriquées")
+    void doit_aplatir_recursivement_les_proprietes_imbriquees() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        Environment environment = new Environment(new String[0]);
+        Map<String, Object> nested = Map.of(
+                "host", "localhost",
+                "pool", Map.of("size", 32)
+        );
+
+        // When
+        initializer.setupConfigurationProperties(environment, "database", nested);
+
+        // Then
+        assertThat(environment.getProperty("database.host")).isEqualTo("localhost");
+        assertThat(environment.getProperty("database.pool.size")).isEqualTo(32);
+    }
+
+    @Test
+    @DisplayName("Doit placer la valeur directement quand setupConfigurationProperties reçoit une valeur simple")
+    void doit_placer_la_valeur_directement_quand_setupconfigurationproperties_recoit_une_valeur_simple() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        // When
+        initializer.setupConfigurationProperties(environment, "database.enabled", true);
+
+        // Then
+        assertThat(environment.getProperty("database.enabled")).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("Doit désérialiser un YAML en map")
+    void doit_deserialiser_un_yaml_en_map() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        URL url = initializer.checkConfigurationProperties("initializer/application-config.yaml");
+        ObjectMapper objectMapper = initializer.createObjectMapper("initializer/application-config.yaml");
+
+        // When
+        Map<String, Object> map = Initializer.deserializeToMap(url, objectMapper, "initializer/application-config.yaml");
+
+        // Then
+        assertThat(map).containsKeys("server", "feature");
+    }
+
+    @Test
+    @DisplayName("Doit echouer lors de la désérialisation d'un JSON invalide")
+    void doit_echouer_lors_de_la_deserialisation_d_un_json_invalide() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        URL url = initializer.checkConfigurationProperties("initializer/application-invalid.json");
+        ObjectMapper objectMapper = initializer.createObjectMapper("initializer/application-invalid.json");
+
+        // When & Then
+        assertThatThrownBy(() -> Initializer.deserializeToMap(url, objectMapper, "initializer/application-invalid.json"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to load configuration properties")
+                .hasMessageContaining("initializer/application-invalid.json")
+                .hasCauseInstanceOf(Exception.class);
+    }
+
+    @Test
+    @DisplayName("Doit reconnaître correctement les extensions YAML et JSON")
+    void doit_reconnaitre_correctement_les_extensions_yaml_et_json() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+
+        // When & Then
+        assertThat(invokePrivateExtensionCheck(initializer, "isYaml", "config.yaml")).isTrue();
+        assertThat(invokePrivateExtensionCheck(initializer, "isYaml", "config.YML")).isTrue();
+        assertThat(invokePrivateExtensionCheck(initializer, "isYaml", "config.json")).isFalse();
+
+        assertThat(invokePrivateExtensionCheck(initializer, "isJson", "config.json")).isTrue();
+        assertThat(invokePrivateExtensionCheck(initializer, "isJson", "config.JSON")).isTrue();
+        assertThat(invokePrivateExtensionCheck(initializer, "isJson", "config.yaml")).isFalse();
+    }
+
     @SuppressWarnings("unchecked")
     private static Class<? extends ApplicationEntryPoint>[] singleEntryPoint(Class<? extends ApplicationEntryPoint> type) {
         return (Class<? extends ApplicationEntryPoint>[]) new Class<?>[]{type};
@@ -196,5 +465,26 @@ class InitializerTest {
 
     private static Class<? extends ApplicationEntryPoint>[] nullEntryPoints() {
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Initializer newInitializer(Class<?> appClass) {
+        try {
+            Constructor<Initializer> constructor = Initializer.class.getDeclaredConstructor(Class.class, String[].class, Class[].class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(appClass, new String[0], singleEntryPoint(ValidEntryPointInitializer.class));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static boolean invokePrivateExtensionCheck(Initializer initializer, String methodName, String path) {
+        try {
+            Method method = Initializer.class.getDeclaredMethod(methodName, String.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(initializer, path);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

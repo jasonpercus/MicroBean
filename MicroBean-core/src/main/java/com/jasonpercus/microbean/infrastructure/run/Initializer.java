@@ -9,10 +9,19 @@ package com.jasonpercus.microbean.infrastructure.run;
 
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_ENTRYPOINTS;
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_SERVICES;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.jasonpercus.microbean.api.ApplicationEntryPoint;
 import com.jasonpercus.microbean.api.Environment;
 import com.jasonpercus.microbean.api.MicroBeanApplication;
@@ -114,6 +123,8 @@ public class Initializer {
 
         Environment environment = new Environment(args);
 
+        treatConfigurationProperties(environment);
+
         classes = new ClassScanner(packages, args).searchAnnotatedClass();
 
         context = new Context();
@@ -177,6 +188,122 @@ public class Initializer {
     }
 
     /**
+     * Traite les propriétés de configuration à partir du fichier YAML/JSON.
+     * <p>
+     * Les propriétés sont chargées dans l'environnement et peuvent être
+     * utilisées par les composants annotés.
+     *
+     * @param environment environnement d'exécution
+     */
+    void treatConfigurationProperties(Environment environment) {
+
+        MicroBeanApplication microBeanApplication = appClass.getAnnotation(MicroBeanApplication.class);
+
+        if (microBeanApplication.configurationProperties() != null && microBeanApplication.configurationProperties().length > 0) {
+
+            String[] configurationProperties = microBeanApplication.configurationProperties();
+
+            for (String path : configurationProperties) {
+
+                if (path != null) {
+
+                    URL url = checkConfigurationProperties(path);
+
+                    ObjectMapper objectMapper = createObjectMapper(path);
+
+                    Map<String, Object> map = deserializeToMap(url, objectMapper, path);
+
+                    if (map != null && !map.isEmpty()) {
+
+                        environment.putProperties(map);
+
+                        for (Map.Entry<String, Object> entry : map.entrySet())
+                            setupConfigurationProperties(environment, entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Recherche et crée chaque propriété de configuration dans l'environnement.
+     *
+     * @param environment environnement d'exécution
+     * @param key         clé de la propriété
+     * @param value       valeur de la propriété
+     */
+    @SuppressWarnings("unchecked")
+    void setupConfigurationProperties(Environment environment, String key, Object value) {
+        if (value instanceof Map) {
+
+            Map<String, Object> nestedMap = (Map<String, Object>) value;
+
+            for (Map.Entry<String, Object> entry : nestedMap.entrySet())
+                setupConfigurationProperties(environment, key + "." + entry.getKey(), entry.getValue());
+
+        } else environment.putProperty(key, value);
+    }
+
+    /**
+     * Crée un {@link ObjectMapper} configuré pour la désérialisation des fichiers de configuration.
+     * Si le fichier est au format YAML, un {@link YAMLFactory} est utilisé. Sinon, un {@link JsonFactory} est utilisé.
+     *
+     * @param path chemin du fichier de configuration
+     * @return instance d'ObjectMapper configurée
+     */
+    ObjectMapper createObjectMapper(String path) {
+        return (isJson(path)
+                ? new ObjectMapper()
+                : new ObjectMapper(new YAMLFactory()))
+            .setPropertyNamingStrategy(PropertyNamingStrategies.KEBAB_CASE);
+    }
+
+    /**
+     * Vérifie si le chemin et le type de configuration sont valides.
+     *
+     * @param path chemin du fichier de configuration
+     * @return URL du fichier de configuration
+     */
+    URL checkConfigurationProperties(String path) {
+
+        if (path == null || path.isEmpty())
+            throw ExceptionManager.invalidPathForConfigurationProperties(path);
+
+        URL url = appClass.getClassLoader().getResource(path);
+
+        if (url == null)
+            throw ExceptionManager.configurationPropertiesFileNotFound(path);
+
+        if ( !(isYaml(path) || isJson(path)) )
+            throw ExceptionManager.invalidFileExtensionForConfigurationProperties(path);
+
+        return url;
+    }
+
+    /**
+     * Vérifie si le chemin du fichier de configuration se termine par l'extension YAML.
+     *
+     * @param path chemin du fichier de configuration
+     * @return {@code true} si le chemin se termine par ".yaml" ou ".yml", sinon {@code false}
+     */
+    private boolean isYaml(String path) {
+
+        String pathLowerCase = path.toLowerCase();
+
+        return pathLowerCase.endsWith(".yaml") || pathLowerCase.endsWith(".yml");
+    }
+
+    /**
+     * Vérifie si le chemin du fichier de configuration se termine par l'extension JSON.
+     *
+     * @param path chemin du fichier de configuration
+     * @return {@code true} si le chemin se termine par ".json", sinon {@code false}
+     */
+    private boolean isJson(String path) {
+        return path.toLowerCase().endsWith(".json");
+    }
+
+    /**
      * Indique si la liste des entry points est absente ou vide.
      *
      * @param appEntryPoint tableau des classes EntryPoint à vérifier
@@ -184,5 +311,21 @@ public class Initializer {
      */
     static boolean isNotEmptyEntryPoints(Class<? extends ApplicationEntryPoint>[] appEntryPoint) {
         return appEntryPoint == null || appEntryPoint.length == 0;
+    }
+
+    /**
+     * Désérialise le contenu d'un fichier de configuration en une Map.
+     *
+     * @param url          URL du fichier de configuration
+     * @param objectMapper instance d'ObjectMapper pour la désérialisation
+     * @param path         chemin du fichier de configuration (pour les messages d'erreur)
+     * @return la Map désérialisée
+     */
+    static Map<String, Object> deserializeToMap(URL url, ObjectMapper objectMapper, String path) {
+        try (InputStream inputStream = url.openStream()) {
+            return objectMapper.readValue(inputStream, new TypeReference<>() {});
+        } catch (IOException e) {
+            throw ExceptionManager.failedToLoadConfigurationProperties(path, e);
+        }
     }
 }

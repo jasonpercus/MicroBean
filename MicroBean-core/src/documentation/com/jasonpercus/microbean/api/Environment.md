@@ -2,7 +2,7 @@
 
 ## 🎯 Description
 
-`Environment` représente le contexte d'exécution accessible par les composants applicatifs. Il encapsule les arguments de démarrage via un objet `Arguments` et expose aussi le profil actif.
+`Environment` représente le contexte d'exécution accessible par les composants applicatifs. Il encapsule les arguments de démarrage via un objet `Arguments`, expose aussi le profil actif ainsi que les propriétés des fichiers de configurations.
 
 `Arguments` est une classe utilitaire orientée manipulation des paramètres CLI (recherche, indexation, préfixes, représentation texte).
 
@@ -15,6 +15,7 @@
 `Environment` agit comme un point d'accès central aux informations d'exécution:
 - les arguments passés à l'application (`getArguments()`),
 - le profil actif (`getProfile()`).
+- les propriétés de configuration (`getProperties()`).
 
 Pendant l'initialisation, MicroBean instancie `Environment` avec les arguments d'entrée, puis l'enregistre dans le contexte IoC (`registerSingleton(Environment.class, environment)`). Cela garantit une instance unique, cohérente et injectable partout.
 
@@ -42,11 +43,13 @@ Pendant l'initialisation, MicroBean instancie `Environment` avec les arguments d
 
 ### Environment
 
-| Méthode                      | Retour      | Rôle                                                          |
-|------------------------------|-------------|---------------------------------------------------------------|
-| `Environment(String[] args)` | -           | Construit l'environnement à partir des arguments de démarrage |
-| `getArguments()`             | `Arguments` | Retourne l'objet de gestion des arguments                     |
-| `getProfile()`               | `String`    | Retourne le profil actif (ou `null` s'il n'est pas défini)    |
+| Méthode                        | Retour                | Rôle                                                                |
+|--------------------------------|-----------------------|---------------------------------------------------------------------|
+| `Environment(String[] args)`   | -                     | Construit l'environnement à partir des arguments de démarrage       |
+| `getArguments()`               | `Arguments`           | Retourne l'objet de gestion des arguments                           |
+| `getProfile()`                 | `String`              | Retourne le profil actif (ou `null` s'il n'est pas défini)          |
+| `getProperties(Class<T> type)` | `T`                   | Retourne les propriétés de configuration mappées sur le type fourni |
+| `getProperties()`              | `Map<String, String>` | Retourne toutes les propriétés de configuration sous forme de map   |
 
 ### Arguments
 
@@ -77,6 +80,7 @@ public class StartupLogger {
     public void logRuntimeContext() {
         System.out.println("Profile actif: " + environment.getProfile());
         System.out.println("Args: " + environment.getArguments());
+        MyConfig props = environment.getProperties(MyConfig.class);
     }
 }
 ```

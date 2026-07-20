@@ -386,6 +386,7 @@ public class RuntimeInfoService {
     public void printInfo() {
         System.out.println("Profile actif: " + environment.getProfile());
         System.out.println("Args: " + environment.getArguments());
+        MyProps props = environment.getProperties(MyProps.class);
     }
 }
 ```
