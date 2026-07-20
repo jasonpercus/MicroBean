@@ -18,11 +18,12 @@ L'annotation `@MicroBeanApplication` permet de déclarer la classe principale d'
 
 ## ⚙️ Attributs
 
-| Nom            | Type     | Valeur par défaut | Rôle / Impact à l'exécution                                               |
-|----------------|----------|-------------------|---------------------------------------------------------------------------|
-| scanPackages   | String[] | {}                | Liste des packages à scanner pour la détection automatique des composants |
-| showBanner     | boolean  | true              | Indique si la bannière de démarrage doit être affichée                    |
-| bannerResource | String   | "banner.txt"      | Nom de la ressource à utiliser pour la bannière de démarrage              |
+| Nom                     | Type     | Valeur par défaut | Rôle / Impact à l'exécution                                                                  |
+|-------------------------|----------|-------------------|----------------------------------------------------------------------------------------------|
+| scanPackages            | String[] | {}                | Liste des packages à scanner pour la détection automatique des composants                    |
+| showBanner              | boolean  | true              | Indique si la bannière de démarrage doit être affichée                                       |
+| bannerResource          | String   | "banner.txt"      | Nom de la ressource à utiliser pour la bannière de démarrage                                 |
+| configurationProperties | String[] | {}                | Liste des chemins de fichiers de propriétés à charger pour la configuration de l'application |
 
 ## 💡 Exemples d'utilisation
 
@@ -66,10 +67,24 @@ public class Application {
 ---
 
 ```java
+@MicroBeanApplication(configurationProperties = {"application.yaml", "database.json"})
+public class Application {
+    
+    public static void main(String[] args) {
+        // ...
+    }
+    
+}
+```
+
+---
+
+```java
 @MicroBeanApplication(
     scanPackages = {"com.example.app", "com.example.lib"},
     showBanner = true,
-    bannerResource = "custom-banner.txt"
+    bannerResource = "custom-banner.txt", 
+    configurationProperties = {"application.yaml", "database.json"}
 )
 public class Application {
     
@@ -85,7 +100,8 @@ public class Application {
 1. Découverte de l'annotation sur la classe principale au démarrage de l'application.
 2. Scan des packages spécifiés pour détecter et enregistrer les composants.
 3. Affichage de la bannière de démarrage si `showBanner` est à `true`.
-4. Initialisation du contexte d'injection et démarrage de l'application.
+4. Chargement des fichiers de configuration spécifiés dans `configurationProperties`.
+5. Initialisation du contexte d'injection et démarrage de l'application.
 
 ## ⚠️ Limitations / cas particuliers
 

@@ -11,14 +11,18 @@ import static com.jasonpercus.microbean.infrastructure.Constants.AT_LEAST_ONE_AP
 import static com.jasonpercus.microbean.infrastructure.Constants.CLASS_IS_ANNOTATED_WITH_MULTIPLE_COMPONENT_ANNOTATIONS;
 import static com.jasonpercus.microbean.infrastructure.Constants.CLASS_IS_NOT_ANNOTATED_WITH_COMPONENT_ANNOTATION;
 import static com.jasonpercus.microbean.infrastructure.Constants.CLASS_SHOULD_NOT_BE_ANNOTATED_WITH_ENTRY_POINT_SERVICE;
+import static com.jasonpercus.microbean.infrastructure.Constants.CONFIGURATION_PROPERTIES_FILE_NOT_FOUND;
 import static com.jasonpercus.microbean.infrastructure.Constants.CONTEXT_IS_NOT_INITIALIZED;
 import static com.jasonpercus.microbean.infrastructure.Constants.CYCLIC_DEPENDENCY_DETECTED;
 import static com.jasonpercus.microbean.infrastructure.Constants.FAILED_TO_CALL_POSTCONSTRUCT_METHOD;
 import static com.jasonpercus.microbean.infrastructure.Constants.FAILED_TO_CREATE_BEAN;
 import static com.jasonpercus.microbean.infrastructure.Constants.FAILED_TO_EVALUATE_CONDITION;
 import static com.jasonpercus.microbean.infrastructure.Constants.FAILED_TO_INVOKE_METHOD;
+import static com.jasonpercus.microbean.infrastructure.Constants.FAILED_TO_LOAD_CONFIGURATION_PROPERTIES;
 import static com.jasonpercus.microbean.infrastructure.Constants.FAILED_TO_PROCESS_CONFIGURATION;
+import static com.jasonpercus.microbean.infrastructure.Constants.INVALID_FILE_EXTENSION_FOR_CONFIGURATION_PROPERTIES;
 import static com.jasonpercus.microbean.infrastructure.Constants.INVALID_MICROBEAN_OS_OVERRIDE;
+import static com.jasonpercus.microbean.infrastructure.Constants.INVALID_PATH_FOR_CONFIGURATION_PROPERTIES;
 import static com.jasonpercus.microbean.infrastructure.Constants.METHOD_IS_NOT_ANNOTATED;
 import static com.jasonpercus.microbean.infrastructure.Constants.METHOD_MUST_BE_PUBLIC;
 import static com.jasonpercus.microbean.infrastructure.Constants.METHOD_MUST_HAVE_RETURN_TYPE;
@@ -304,6 +308,46 @@ public class ExceptionManager {
      */
     public static RuntimeException classIsNotAnnotatedWithComponentAnnotation(Class<?> clazz) {
         return new MicroBeanException(CLASS_IS_NOT_ANNOTATED_WITH_COMPONENT_ANNOTATION, abbreviateClassName(clazz));
+    }
+
+    /**
+     * Construit une {@link RuntimeException} indiquant qu'un chemin de configuration est invalide.
+     *
+     * @param path le chemin de configuration invalide
+     * @return l'exception à lancer
+     */
+    public static RuntimeException invalidPathForConfigurationProperties(String path) {
+        return new MicroBeanException(INVALID_PATH_FOR_CONFIGURATION_PROPERTIES, path);
+    }
+
+    /**
+     * Construit une {@link RuntimeException} indiquant qu'un fichier de configuration est introuvable.
+     *
+     * @param path le chemin du fichier de configuration
+     * @return l'exception à lancer
+     */
+    public static RuntimeException configurationPropertiesFileNotFound(String path) {
+        return new MicroBeanException(CONFIGURATION_PROPERTIES_FILE_NOT_FOUND, path);
+    }
+
+    /**
+     * Construit une {@link RuntimeException} indiquant qu'un fichier de configuration a une extension invalide.
+     *
+     * @param path le chemin du fichier de configuration
+     * @return l'exception à lancer
+     */
+    public static RuntimeException invalidFileExtensionForConfigurationProperties(String path) {
+        return new MicroBeanException(INVALID_FILE_EXTENSION_FOR_CONFIGURATION_PROPERTIES, path);
+    }
+
+    /**
+     * Construit une {@link RuntimeException} indiquant qu'un fichier de configuration n'a pas pu être chargé.
+     *
+     * @param path le chemin du fichier de configuration
+     * @return l'exception à lancer
+     */
+    public static RuntimeException failedToLoadConfigurationProperties(String path, Exception e) {
+        return new MicroBeanException(e, FAILED_TO_LOAD_CONFIGURATION_PROPERTIES, path);
     }
 
     /**

@@ -7,6 +7,10 @@ package com.jasonpercus.microbean.api;
  * See LICENSE file in the project root for more information.
  */
 
+import java.util.HashMap;
+import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.jasonpercus.microbean.MicroBean;
 
 /**
@@ -18,6 +22,12 @@ public class Environment {
     /** Arguments de la ligne de commande passés à l'application. */
     private final Arguments arguments;
 
+    /** Propriétés aplaties de configuration de l'application */
+    private final Map<String, Object> flatProperties;
+
+    /** Propriétés de configuration de l'application */
+    private final Map<String, Object> properties;
+
     /**
      * Crée une instance d'Environment à partir des arguments de la ligne de commande.
      *
@@ -25,6 +35,8 @@ public class Environment {
      */
     public Environment(String[] args) {
         this.arguments = new Arguments(args);
+        this.flatProperties = new HashMap<>();
+        this.properties = new HashMap<>();
     }
 
     /**
@@ -43,5 +55,55 @@ public class Environment {
      */
     public String getProfile() {
         return MicroBean.getActiveProfile();
+    }
+
+    /**
+     * Retourne les propriétés de configuration de l'application sous forme d'un objet de type {@code T}.
+     *
+     * @param <T> le type de l'objet de propriétés
+     * @param type la classe représentant les propriétés
+     * @return un objet contenant les propriétés de configuration, ou {@code null} si aucune propriété n'est trouvée
+     */
+    public <T> T getProperties(Class<T> type) {
+        return new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.KEBAB_CASE)
+                .convertValue(properties, type);
+    }
+
+    /**
+     * Retourne les propriétés de configuration de l'application.
+     *
+     * @return les propriétés de configuration
+     */
+    public Map<String, Object> getProperties() {
+        return flatProperties;
+    }
+
+    /**
+     * Retourne la valeur d'une propriété de configuration spécifique.
+     *
+     * @param key la clé de la propriété
+     * @return la valeur de la propriété, ou {@code null} si la propriété n'existe pas
+     */
+    public Object getProperty(String key) {
+        return flatProperties.get(key);
+    }
+
+    /**
+     * Pousse une propriété de configuration dans l'environnement.
+     *
+     * @param key la clé de la propriété
+     * @param value la valeur de la propriété
+     */
+    public void putProperty(String key, Object value) {
+        flatProperties.put(key, value);
+    }
+
+    /**
+     * Pousse un ensemble de propriétés de configuration dans l'environnement.
+     *
+     * @param properties un ensemble de propriétés à ajouter
+     */
+    public void putProperties(Map<String, Object> properties) {
+        this.properties.putAll(properties);
     }
 }

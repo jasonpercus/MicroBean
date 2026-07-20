@@ -245,4 +245,24 @@ public class Constants {
      * Message d'erreur indiquant qu'une classe ne doit pas être annotée avec {@link EntryPointService}.
      */
     public static final String CLASS_SHOULD_NOT_BE_ANNOTATED_WITH_ENTRY_POINT_SERVICE = "\uD83D\uDEAB \"%s\" class should not be annotated with @" + EntryPointService.class.getSimpleName() + " because it is not an " + ApplicationEntryPoint.class.getSimpleName();
+
+    /**
+     * Message d'erreur indiquant qu'un path de configuration est invalide.
+     */
+    public static final String INVALID_PATH_FOR_CONFIGURATION_PROPERTIES = "\uD83D\uDEAB Invalid path for properties file: %s";
+
+    /**
+     * Message d'erreur indiquant qu'un fichier de configuration est introuvable.
+     */
+    public static final String CONFIGURATION_PROPERTIES_FILE_NOT_FOUND = "\uD83D\uDEAB Configuration properties file not found: %s";
+
+    /**
+     * Message d'erreur indiquant qu'un fichier de configuration a une extension invalide.
+     */
+    public static final String INVALID_FILE_EXTENSION_FOR_CONFIGURATION_PROPERTIES = "\uD83D\uDEAB Invalid configuration properties file: %s";
+
+    /**
+     * Message d'erreur indiquant qu'un fichier de configuration n'a pas pu être chargé.
+     */
+    public static final String FAILED_TO_LOAD_CONFIGURATION_PROPERTIES = "\uD83D\uDEAB Failed to load configuration properties: %s";
 }

@@ -63,4 +63,11 @@ public @interface MicroBeanApplication {
      * @return le nom de la ressource de la bannière
      */
     String bannerResource() default "banner.txt";
+
+    /**
+     * Tableau de chemins de fichiers de configuration (yaml, yml, json) à charger au démarrage de l'application.
+     *
+     * @return les chemins des fichiers de configuration dans le classpath
+     */
+    String[] configurationProperties() default {};
 }
