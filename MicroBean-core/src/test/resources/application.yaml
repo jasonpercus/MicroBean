@@ -1,0 +1,6 @@
+application:
+  name: microbean
+  port: 8080
+  description: base
+shared:
+  value: yaml-value

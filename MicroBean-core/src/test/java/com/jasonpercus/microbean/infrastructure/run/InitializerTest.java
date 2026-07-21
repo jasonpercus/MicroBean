@@ -17,6 +17,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.jasonpercus.microbean.api.Environment;
 import com.jasonpercus.microbean.api.ApplicationEntryPoint;
 import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithConfigurationPropertiesInitializer;
+import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithCustomConfigurationPropertiesInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithExplicitScanPackagesInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithInvalidConfigurationExtensionInitializer;
 import com.jasonpercus.microbean.infrastructure.run.initializer.AppWithInvalidJsonConfigurationInitializer;
@@ -205,7 +206,7 @@ class InitializerTest {
         Environment environment = new Environment(new String[0]);
 
         // When
-        initializer.treatConfigurationProperties(environment);
+        initializer.manageConfigurationProperties(environment);
 
         // Then
         assertThat(environment.getProperties()).containsKeys(
@@ -222,18 +223,164 @@ class InitializerTest {
     }
 
     @Test
-    @DisplayName("Doit ignorer les propriétés de configuration quand l'annotation n'en déclare aucune")
-    void doit_ignorer_les_proprietes_de_configuration_quand_l_annotation_n_en_declare_aucune() {
+    @DisplayName("Doit charger les propriétés implicites application.* quand l'annotation n'en déclare aucune")
+    void doit_charger_les_proprietes_implicites_quand_l_annotation_n_en_declare_aucune() {
 
         // Given
         Initializer initializer = newInitializer(ValidAppInitializer.class);
         Environment environment = new Environment(new String[0]);
 
         // When
-        initializer.treatConfigurationProperties(environment);
+        initializer.manageConfigurationProperties(environment);
 
         // Then
-        assertThat(environment.getProperties()).isEmpty();
+        assertThat(environment.getProperties()).containsKeys(
+                "application.name",
+                "application.port",
+                "application.description",
+                "shared.value"
+        );
+        assertThat(environment.getProperty("application.name")).isEqualTo("microbean");
+        assertThat(environment.getProperty("application.port")).isEqualTo(9090);
+        assertThat(environment.getProperty("shared.value")).isEqualTo("json-value");
+    }
+
+    @Test
+    @DisplayName("Doit charger automatiquement application.yaml et le profil actif")
+    void doit_charger_automatiquement_application_yaml_et_le_profil_actif() {
+
+        // Given
+        String originalProfile = System.getProperty("app.profile");
+        System.setProperty("app.profile", "local");
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        try {
+            // When
+            initializer.manageConfigurationProperties(environment);
+
+            // Then
+            assertThat(environment.getProperty("application.name")).isEqualTo("microbean");
+            assertThat(environment.getProperty("application.port")).isEqualTo(9090);
+            assertThat(environment.getProperty("application.debug")).isEqualTo(true);
+            assertThat(environment.getProperty("application.description")).isEqualTo("local override");
+        } finally {
+            restoreProfile(originalProfile);
+        }
+    }
+
+    @Test
+    @DisplayName("Doit laisser la dernière valeur l'emporter quand plusieurs fichiers déclarent la même clé")
+    void doit_laisser_la_derniere_valeur_l_emporter_quand_plusieurs_fichiers_declarent_la_meme_cle() {
+
+        // Given
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        // When
+        initializer.manageConfigurationProperties(environment);
+
+        // Then
+        assertThat(environment.getProperty("shared.value")).isEqualTo("json-value");
+    }
+
+    @Test
+    @DisplayName("Doit charger un overlay de profil même si le profil est écrit en majuscules")
+    void doit_charger_un_overlay_de_profil_meme_si_le_profil_est_ecrit_en_majuscules() {
+
+        // Given
+        String originalProfile = System.getProperty("app.profile");
+        System.setProperty("app.profile", "LOCAL");
+        Initializer initializer = newInitializer(ValidAppInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        try {
+            // When
+            initializer.manageConfigurationProperties(environment);
+
+            // Then
+            assertThat(environment.getProperty("application.description")).isEqualTo("local override");
+        } finally {
+            restoreProfile(originalProfile);
+        }
+    }
+
+    @Test
+    @DisplayName("Doit surcharger les fichiers explicites non application.* avec le profil actif")
+    void doit_surcharger_les_fichiers_explicites_non_application_avec_le_profil_actif() {
+
+        // Given
+        String originalProfile = System.getProperty("app.profile");
+        System.setProperty("app.profile", "local");
+        Initializer initializer = newInitializer(AppWithCustomConfigurationPropertiesInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        try {
+            // When
+            initializer.manageConfigurationProperties(environment);
+
+            // Then
+            assertThat(environment.getProperty("custom-json.origin")).isEqualTo("base");
+            assertThat(environment.getProperty("custom-json.value")).isEqualTo("json-local");
+            assertThat(environment.getProperty("custom-json.enabled")).isEqualTo(true);
+
+            assertThat(environment.getProperty("custom-yaml.origin")).isEqualTo("base");
+            assertThat(environment.getProperty("custom-yaml.value")).isEqualTo("yaml-local");
+            assertThat(environment.getProperty("custom-yaml.enabled")).isEqualTo(true);
+
+            assertThat(environment.getProperty("custom-yml.origin")).isEqualTo("base");
+            assertThat(environment.getProperty("custom-yml.value")).isEqualTo("yml-local");
+            assertThat(environment.getProperty("custom-yml.enabled")).isEqualTo(true);
+        } finally {
+            restoreProfile(originalProfile);
+        }
+    }
+
+    @Test
+    @DisplayName("Doit conserver les valeurs de base des fichiers explicites quand aucun profil n'est actif")
+    void doit_conserver_les_valeurs_de_base_des_fichiers_explicites_quand_aucun_profil_n_est_actif() {
+
+        // Given
+        String originalProfile = System.getProperty("app.profile");
+        System.clearProperty("app.profile");
+        Initializer initializer = newInitializer(AppWithCustomConfigurationPropertiesInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        try {
+            // When
+            initializer.manageConfigurationProperties(environment);
+
+            // Then
+            assertThat(environment.getProperty("custom-json.value")).isEqualTo("json-base");
+            assertThat(environment.getProperty("custom-json.enabled")).isNull();
+            assertThat(environment.getProperty("custom-yaml.value")).isEqualTo("yaml-base");
+            assertThat(environment.getProperty("custom-yml.value")).isEqualTo("yml-base");
+        } finally {
+            restoreProfile(originalProfile);
+        }
+    }
+
+    @Test
+    @DisplayName("Doit résoudre les surcharges explicites quand le profil est en majuscules")
+    void doit_resoudre_les_surcharges_explicites_quand_le_profil_est_en_majuscules() {
+
+        // Given
+        String originalProfile = System.getProperty("app.profile");
+        System.setProperty("app.profile", "LOCAL");
+        Initializer initializer = newInitializer(AppWithCustomConfigurationPropertiesInitializer.class);
+        Environment environment = new Environment(new String[0]);
+
+        try {
+            // When
+            initializer.manageConfigurationProperties(environment);
+
+            // Then
+            assertThat(environment.getProperty("custom-json.value")).isEqualTo("json-local");
+            assertThat(environment.getProperty("custom-yaml.value")).isEqualTo("yaml-local");
+            assertThat(environment.getProperty("custom-yml.value")).isEqualTo("yml-local");
+        } finally {
+            restoreProfile(originalProfile);
+        }
     }
 
     @Test
@@ -244,7 +391,7 @@ class InitializerTest {
         Initializer initializer = newInitializer(AppWithInvalidConfigurationExtensionInitializer.class);
 
         // When & Then
-        assertThatThrownBy(() -> initializer.treatConfigurationProperties(new Environment(new String[0])))
+        assertThatThrownBy(() -> initializer.manageConfigurationProperties(new Environment(new String[0])))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Invalid configuration properties file")
                 .hasMessageContaining("initializer/application-config.txt");
@@ -258,7 +405,7 @@ class InitializerTest {
         Initializer initializer = newInitializer(AppWithMissingConfigurationInitializer.class);
 
         // When & Then
-        assertThatThrownBy(() -> initializer.treatConfigurationProperties(new Environment(new String[0])))
+        assertThatThrownBy(() -> initializer.manageConfigurationProperties(new Environment(new String[0])))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Configuration properties file not found")
                 .hasMessageContaining("initializer/missing-config.yaml");
@@ -272,7 +419,7 @@ class InitializerTest {
         Initializer initializer = newInitializer(AppWithInvalidJsonConfigurationInitializer.class);
 
         // When & Then
-        assertThatThrownBy(() -> initializer.treatConfigurationProperties(new Environment(new String[0])))
+        assertThatThrownBy(() -> initializer.manageConfigurationProperties(new Environment(new String[0])))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to load configuration properties")
                 .hasMessageContaining("initializer/application-invalid.json")
@@ -467,7 +614,6 @@ class InitializerTest {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private static Initializer newInitializer(Class<?> appClass) {
         try {
             Constructor<Initializer> constructor = Initializer.class.getDeclaredConstructor(Class.class, String[].class, Class[].class);
@@ -476,6 +622,13 @@ class InitializerTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static void restoreProfile(String value) {
+        if (value == null)
+            System.clearProperty("app.profile");
+        else
+            System.setProperty("app.profile", value);
     }
 
     private static boolean invokePrivateExtensionCheck(Initializer initializer, String methodName, String path) {

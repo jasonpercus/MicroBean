@@ -36,6 +36,7 @@ d'entrée.*
 - [⚖️ Positionnement par rapport à Spring](#-positionnement-par-rapport-à-spring)
 - [🧱 Fonctionnement général (Mermaid)](#-fonctionnement-général-mermaid)
 - [🚀 Démarrage rapide](#-démarrage-rapide)
+- [⚙️ Gestion des propriétés de configuration](#-gestion-des-propriétés-de-configuration)
 - [📖 Journalisation SLF4J](#-journalisation-slf4j)
 - [🧪 Exemples utiles](#-exemples-utiles)
 - [🧵 Cycle de vie des EntryPoints](#-cycle-de-vie-des-entrypoints)
@@ -52,7 +53,8 @@ d'entrée.*
 - ✅ Activation conditionnelle via profils (`@Profile`) et conditions (`@Condition`)
 - ✅ Sélection d'implémentations selon l'OS avec `@Adapter(os = ...)`
 - ✅ Démarrage piloté par points d'entrée (`@EntryPointService`)
-- ✅ Contexte runtime injectable via `Environment` (arguments + profil actif)
+- ✅ Contexte runtime injectable via `Environment` (arguments + profil actif + propriétés de configuration)
+- ✅ Chargement automatique de fichiers de configuration YAML/JSON
 - ✅ Logs du framework via `SLF4J` (backend laissé au choix de l'application)
 
 ## ⚖️ Positionnement par rapport à Spring
@@ -79,6 +81,7 @@ flowchart TD
     B --> C[Banner.show]
     B --> D[Initializer.init]
     D --> D1[Environment singleton pre-enregistre]
+    D --> D2["Charger propriétés<br/>YAML/JSON"]
     D --> E[ClassScanner: scan des classes]
     B --> F[Processor.execute]
     F --> G[Validators: scan/profile/condition/injection]
@@ -168,6 +171,66 @@ public class GreetingService {
         return "Hello " + name;
     }
 }
+```
+
+## ⚙️ Gestion des propriétés de configuration
+
+MicroBean charge automatiquement les fichiers de configuration au démarrage :
+
+- **Par défaut** : `application.yaml`, `application.yml` et `application.json` sont recherchés automatiquement.
+- **Profils** : Des fichiers de surcharge peuvent être chargés selon le profil actif (`application-{profile}.yaml`, etc.).
+- **Formats supportés** : YAML (`.yaml`, `.yml`) et JSON (`.json`).
+- **Propriétés aplaties** : Les propriétés imbriquées sont automatiquement converties en notation pointée (kebab-case).
+- **Accès runtime** : Via `Environment.getProperties()`, `Environment.getProperty(key)` ou mapping sur une classe.
+
+### Exemple de configuration
+
+```yaml
+# application.yaml
+server:
+  host-name: localhost
+  port: 8080
+database:
+  max-pool-size: 10
+  enabled: true
+```
+
+```yaml
+# application-local.yaml (surcharge pour le profil 'local')
+server:
+  host-name: 127.0.0.1
+database:
+  max-pool-size: 5
+```
+
+### Utilisation dans le code
+
+```java
+@Service
+public class DatabaseService {
+
+    private final Environment environment;
+
+    public DatabaseService(Environment environment) {
+        this.environment = environment;
+    }
+
+    public int getPoolSize() {
+        return (int) environment.getProperty("database.max-pool-size");
+    }
+}
+```
+
+### Configuration explicite
+
+Via `@MicroBeanApplication(configurationProperties={...})` :
+
+```java
+@MicroBeanApplication(
+    scanPackages = {"com.example"},
+    configurationProperties = {"config/custom.yaml", "config/secrets.json"}
+)
+public class Application { }
 ```
 
 ## 📖 Journalisation SLF4J

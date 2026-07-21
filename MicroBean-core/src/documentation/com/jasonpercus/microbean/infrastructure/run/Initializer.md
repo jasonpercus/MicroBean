@@ -103,6 +103,28 @@ Valide les préconditions métier ; lève des `MicroBeanException` via `Exceptio
 - classe principale annotée `@EntryPointService` (interdit) ;
 - entry point non annoté `@EntryPointService`.
 
+### `void manageConfigurationProperties(Environment environment)`
+
+Charge et fusionne les propriétés de configuration via la séquence suivante :
+
+1. **Par défaut (optionnels)** : `application.yaml`, `application.yml`, `application.json` sont recherchés. S'ils existent, leurs propriétés sont chargées.
+2. **Explicites** : Les fichiers spécifiés via `@MicroBeanApplication(configurationProperties={...})` sont chargés (obligatoires si spécifiés).
+3. **Par profil** : Si un profil est actif, les variantes `application-{profile}.yaml`, `application-{profile}.yml`, `application-{profile}.json` et les variantes des fichiers explicites sont chargées et fusionnent les propriétés.
+
+Les propriétés imbriquées sont aplaties en notation pointée (kebab-case). Exemple : `server: { hostName: localhost }` devient `server.host-name`.
+
+### `void loadConfigurationProperties(Environment environment, String path, boolean required)`
+
+Charge les propriétés d'un fichier YAML ou JSON, optionnellement ou obligatoirement selon le drapeau `required`.
+
+- Si `required=false` et le fichier n'existe pas, aucune erreur.
+- Si `required=true` et le fichier n'existe pas, une exception est levée.
+- Les fichiers de profil ne sont jamais `required`.
+
+### `void setupConfigurationProperties(Environment environment, String key, Object value)`
+
+Récursivement aplatit les propriétés imbriquées. Pour chaque niveau de profondeur, construit une clé respectant la notation pointée kebab-case, en enregistrant chaque feuille dans `Environment.putProperty()`.
+
 ### `String[] getPackagesPathsToScan()`
 
 - Si `@MicroBeanApplication(scanPackages=...)` est renseigné : retourne ces packages.
@@ -150,7 +172,82 @@ flowchart TD
 
 ---
 
-## 5) 📐 Contrats implicites importants (pour la maintenance)
+## 5) ⚙️ Gestion des propriétés de configuration
+
+### 5.1 Stratégie de chargement
+
+Les fichiers de configuration sont chargés dans cet ordre :
+
+1. **Fichiers par défaut (optionnels)**
+   - `application.yaml`
+   - `application.yml`
+   - `application.json`
+
+   Aucune erreur si ces fichiers n'existent pas.
+
+2. **Fichiers explicites (obligatoires si spécifiés)**
+   - Définis via `@MicroBeanApplication(configurationProperties={...})`
+   - Lève une `MicroBeanException` s'il en manque un
+
+3. **Fichiers de profil (optionnels)**
+   - Variantes : `application-{profile}.yaml`, `application-{profile}.yml`, `application-{profile}.json`
+   - Variantes des fichiers explicites : `{customPath}-{profile}.yaml`, etc.
+   - Chargées seulement si un profil actif est défini
+   - Leur contenu **fusionne** (voir écrase) avec les propriétés déjà chargées
+
+### 5.2 Aplatissement des propriétés (Kebab-Case)
+
+Les propriétés imbriquées (YAML/JSON) sont converties en notation pointée :
+
+```yaml
+# application.yaml
+server:
+  host-name: localhost
+  port: 8080
+database:
+  connection-pool:
+    max-size: 10
+```
+
+Devient en mémoire :
+
+```
+server.host-name = "localhost"
+server.port = 8080
+database.connection-pool.max-size = 10
+```
+
+L'accès se fait via `environment.getProperty("database.connection-pool.max-size")`.
+
+### 5.3 Fusion des profils
+
+- Les valeurs d'un fichier profil **surcharge** les valeurs de base.
+- La fusion est récursive : les niveaux imbriqués sont fusionnés intelligemment.
+- Exemple :
+
+```yaml
+# application.yaml
+database:
+  max-pool-size: 10
+  enabled: true
+```
+
+```yaml
+# application-local.yaml
+database:
+  max-pool-size: 5
+  # 'enabled' n'est pas redéfini, reste 'true'
+```
+
+Résultat : `max-pool-size: 5`, `enabled: true`.
+
+### 5.4 Format supportés
+
+- **YAML** : `.yaml`, `.yml` (case-insensitive)
+- **JSON** : `.json` (case-insensitive)
+- Les fichiers doivent avoir l'une de ces extensions (validation stricte pour les explicites)
+
+## 6) 📐 Contrats implicites importants (pour la maintenance)
 
 - L'ordre des validations de `checkParameters()` est significatif :
   - on signale d'abord l'absence de `@MicroBeanApplication`,
@@ -158,20 +255,28 @@ flowchart TD
   - puis la cohérence des annotations `@EntryPointService`.
 - `getPackagesPathsToScan()` suppose que `appClass` est déjà validée (annotation présente).
 - Le scan repose sur `ClassScanner` et les annotations composants reconnues par le framework.
-- `Environment` est toujours préenregistré en singleton avant le scan, donc injectable immédiatement dans les beans.
+- **Management des propriétés**:
+  - `manageConfigurationProperties()` est appelée **après** `getPackagesPathsToScan()` mais **avant** le scan des classes.
+  - Les fichiers par défaut sont optionnels ; les explicites sont obligatoires.
+  - L'ordre de chargement garantit que les profils surchargent toujours les valeurs de base.
+  - Les propriétés sont aplaties immédiatement et indexées dans `Environment.flatProperties` pour un accès O(1).
+- `Environment` est toujours préenregistré en singleton **après** le chargement des propriétés, donc injectable immédiatement dans les beans.
 - Les messages d'erreur sont centralisés dans `Constants` + `ExceptionManager` (stabilité attendue pour les tests et l'expérience développeur).
 
 ---
 
-## 6) ⚠️ Risques lors des modifications
+## 7) ⚠️ Risques lors des modifications
 
 Si vous modifiez `Initializer`, vérifier en priorité :
 
 1. **Régressions de validation** : ne pas relâcher les contrôles fail-fast.
 2. **Ordre des erreurs** : il impacte les messages observés par les tests Cucumber.
 3. **Stratégie de scan** : un mauvais fallback de package peut vider `classes`.
-4. **Singleton runtime** : ne pas casser l'enregistrement de `Environment` dans `Context`.
-5. **Compatibilité d'API** : `MicroBean.run(...)` dépend de `getContext()` et `getClasses()`.
+4. **Ordre de chargement des propriétés** : l'ordre garantit la stratégie de surcharge. Ne pas réordonner sans reconsidérer la fusion.
+5. **Fusion des propriétés** : les tests de fusion récursive doivent passer (vérifier que les profils surchargent bien les valeurs).
+6. **Validité des extensions** : s'assurer que seuls `.yaml`, `.yml` et `.json` sont acceptés.
+7. **Singleton runtime** : ne pas casser l'enregistrement de `Environment` dans `Context`.
+8. **Compatibilité d'API** : `MicroBean.run(...)` dépend de `getContext()` et `getClasses()`.
 
 > 🛡️ Recommandation : conserver des changements atomiques et relancer unitaires + Cucumber.
 
@@ -203,6 +308,13 @@ Ces tests couvrent :
 - **Méthode utilitaire**
   - `isNotEmptyEntryPoints(...)` pour les cas `null`, vide, et non vide.
 
+- **Chargement des propriétés de configuration**
+  - chargement des fichiers YAML et JSON ;
+  - aplatissement des propriétés imbriquées ;
+  - surcharge des propriétés par profil ;
+  - gestion des cas d'erreur (fichier manquant, extension invalide, contenu invalide) ;
+  - reconnaissance correcte des extensions (`.yaml`, `.yml`, `.json`).
+
 Objectif de ces tests : verrouiller la logique locale de `Initializer` sans dépendre du flux complet du framework.
 
 ### 7.2 🥒 Tests Cucumber (intégration comportementale)
@@ -230,9 +342,11 @@ Ce que ces scénarios apportent en plus des unitaires :
 
 - `Initializer` est une classe courte mais critique : elle protège le framework des démarrages invalides.
 - Son output (`Context` + classes scannées) conditionne toutes les étapes aval.
+- Elle gère aussi le chargement des propriétés de configuration avant l'injection des dépendances.
 - Avant toute évolution, vérifier l'impact sur :
   - les préconditions de démarrage,
   - le calcul des packages à scanner,
+  - la stratégie de chargement/fusion des propriétés,
   - les messages d'erreur attendus par les tests.
 
 En cas de refactor, commencer par ajuster/étendre les tests dans `InitializerTest` puis confirmer avec les scénarios Cucumber de `microbean.feature`.

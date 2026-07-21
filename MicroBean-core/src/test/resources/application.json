@@ -1,0 +1,8 @@
+{
+  "shared": {
+    "value": "json-value"
+  },
+  "application": {
+    "port": 9090
+  }
+}

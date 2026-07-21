@@ -9,6 +9,7 @@ package com.jasonpercus.microbean.api;
 
 import java.util.HashMap;
 import java.util.Map;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.jasonpercus.microbean.MicroBean;
@@ -66,6 +67,7 @@ public class Environment {
      */
     public <T> T getProperties(Class<T> type) {
         return new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.KEBAB_CASE)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .convertValue(properties, type);
     }
 
@@ -104,6 +106,35 @@ public class Environment {
      * @param properties un ensemble de propriétés à ajouter
      */
     public void putProperties(Map<String, Object> properties) {
-        this.properties.putAll(properties);
+        if (properties == null || properties.isEmpty())
+            return;
+
+        mergeProperties(this.properties, properties);
+    }
+
+    /**
+     * Fusionne récursivement les propriétés imbriquées.
+     *
+     * @param target la carte cible dans laquelle fusionner les propriétés
+     * @param source la carte source contenant les propriétés à fusionner
+     */
+    @SuppressWarnings("unchecked")
+    private void mergeProperties(Map<String, Object> target, Map<String, Object> source) {
+
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+
+            Object sourceValue = entry.getValue();
+            Object targetValue = target.get(entry.getKey());
+
+            if (sourceValue instanceof Map && targetValue instanceof Map) {
+                mergeProperties((Map<String, Object>) targetValue, (Map<String, Object>) sourceValue);
+            } else if (sourceValue instanceof Map) {
+                Map<String, Object> nestedTarget = new HashMap<>();
+                mergeProperties(nestedTarget, (Map<String, Object>) sourceValue);
+                target.put(entry.getKey(), nestedTarget);
+            } else {
+                target.put(entry.getKey(), sourceValue);
+            }
+        }
     }
 }

@@ -96,8 +96,8 @@ class EnvironmentTest {
 
         // Then
         assertThat(properties).isNotNull();
-        assertThat(properties.getServerPort()).isEqualTo(8080);
-        assertThat(properties.getServiceName()).isEqualTo("microbean");
+        assertThat(properties.serverPort).isEqualTo(8080);
+        assertThat(properties.serviceName).isEqualTo("microbean");
     }
 
     @Test
@@ -118,9 +118,9 @@ class EnvironmentTest {
 
         // Then
         assertThat(properties).isNotNull();
-        assertThat(properties.getDatabase()).isNotNull();
-        assertThat(properties.getDatabase().getHostName()).isEqualTo("localhost");
-        assertThat(properties.getDatabase().getMaxPoolSize()).isEqualTo(16);
+        assertThat(properties.database).isNotNull();
+        assertThat(properties.database.hostName).isEqualTo("localhost");
+        assertThat(properties.database.maxPoolSize).isEqualTo(16);
     }
 
     @Test
@@ -135,8 +135,8 @@ class EnvironmentTest {
 
         // Then
         assertThat(properties).isNotNull();
-        assertThat(properties.getServerPort()).isEqualTo(0);
-        assertThat(properties.getServiceName()).isNull();
+        assertThat(properties.serverPort).isEqualTo(0);
+        assertThat(properties.serviceName).isNull();
     }
 
     @Test
@@ -152,72 +152,78 @@ class EnvironmentTest {
     }
 
     @Test
-    @DisplayName("Doit échouer si une clé inconnue est présente")
-    void doit_echouer_si_une_cle_inconnue_est_presente() {
+    @DisplayName("Doit ignorer les clés inconnues lors du mapping")
+    void doit_ignorer_les_cles_inconnues_lors_du_mapping() {
 
         // Given
         Environment env = new Environment(new String[0]);
         env.putProperties(Map.of("unknown-key", "value"));
 
-        // When & Then
-        assertThatThrownBy(() -> env.getProperties(AppProperties.class))
-                .isInstanceOf(IllegalArgumentException.class);
+        // When
+        AppProperties properties = env.getProperties(AppProperties.class);
+
+        // Then
+        assertThat(properties).isNotNull();
+        assertThat(properties.serverPort).isEqualTo(0);
+        assertThat(properties.serviceName).isNull();
+    }
+
+    @Test
+    @DisplayName("Doit fusionner récursivement les propriétés imbriquées")
+    void doit_fusionner_recursivement_les_proprietes_imbriquees() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperties(Map.of(
+                "application", Map.of(
+                        "name", "microbean",
+                        "port", 8080
+                )
+        ));
+
+        // When
+        env.putProperties(Map.of(
+                "application", Map.of(
+                        "port", 9090,
+                        "debug", true
+                )
+        ));
+
+        // Then
+        NestedApplicationProperties properties = env.getProperties(NestedApplicationProperties.class);
+        assertThat(properties).isNotNull();
+        assertThat(properties.application).isNotNull();
+        assertThat(properties.application.name).isEqualTo("microbean");
+        assertThat(properties.application.port).isEqualTo(9090);
+        assertThat(properties.application.debug).isTrue();
     }
 
     private static class AppProperties {
 
-        private int serverPort;
-        private String serviceName;
-
-        public int getServerPort() {
-            return serverPort;
-        }
-
-        public void setServerPort(int serverPort) {
-            this.serverPort = serverPort;
-        }
-
-        public String getServiceName() {
-            return serviceName;
-        }
-
-        public void setServiceName(String serviceName) {
-            this.serviceName = serviceName;
-        }
+        public int serverPort;
+        public String serviceName;
     }
 
     private static class NestedProperties {
 
-        private DatabaseProperties database;
-
-        public DatabaseProperties getDatabase() {
-            return database;
-        }
-
-        public void setDatabase(DatabaseProperties database) {
-            this.database = database;
-        }
+        public DatabaseProperties database;
     }
 
     private static class DatabaseProperties {
 
-        private String hostName;
-        private int maxPoolSize;
+        public String hostName;
+        public int maxPoolSize;
+    }
 
-        public String getHostName() {
-            return hostName;
-        }
+    private static class NestedApplicationProperties {
 
-        public void setHostName(String hostName) {
-            this.hostName = hostName;
-        }
+        public ApplicationProperties application;
+    }
 
-        public int getMaxPoolSize() {
-            return maxPoolSize;
-        }
+    private static class ApplicationProperties {
 
-        public void setMaxPoolSize(int maxPoolSize) {
-            this.maxPoolSize = maxPoolSize;
-        }
+        public String name;
+        public int port;
+        public boolean debug;
     }
 }
