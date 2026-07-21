@@ -123,7 +123,7 @@ public class Initializer {
 
         Environment environment = new Environment(args);
 
-        treatConfigurationProperties(environment);
+        manageConfigurationProperties(environment);
 
         classes = new ClassScanner(packages, args).searchAnnotatedClass();
 
@@ -195,34 +195,20 @@ public class Initializer {
      *
      * @param environment environnement d'exécution
      */
-    void treatConfigurationProperties(Environment environment) {
+    void manageConfigurationProperties(Environment environment) {
 
         MicroBeanApplication microBeanApplication = appClass.getAnnotation(MicroBeanApplication.class);
+        String[] explicitConfigurationProperties = microBeanApplication.configurationProperties();
+        String profile = environment.getProfile();
 
-        if (microBeanApplication.configurationProperties() != null && microBeanApplication.configurationProperties().length > 0) {
+        loadConfigurationProperties(environment, "application.yaml", false);
+        loadConfigurationProperties(environment, "application.yml", false);
+        loadConfigurationProperties(environment, "application.json", false);
 
-            String[] configurationProperties = microBeanApplication.configurationProperties();
+        for (String path : explicitConfigurationProperties)
+            loadConfigurationPropertiesWithProfile(environment, path, profile);
 
-            for (String path : configurationProperties) {
-
-                if (path != null) {
-
-                    URL url = checkConfigurationProperties(path);
-
-                    ObjectMapper objectMapper = createObjectMapper(path);
-
-                    Map<String, Object> map = deserializeToMap(url, objectMapper, path);
-
-                    if (map != null && !map.isEmpty()) {
-
-                        environment.putProperties(map);
-
-                        for (Map.Entry<String, Object> entry : map.entrySet())
-                            setupConfigurationProperties(environment, entry.getKey(), entry.getValue());
-                    }
-                }
-            }
-        }
+        loadProfileConfigurationProperties(environment, profile);
     }
 
     /**
@@ -278,6 +264,121 @@ public class Initializer {
             throw ExceptionManager.invalidFileExtensionForConfigurationProperties(path);
 
         return url;
+    }
+
+    /**
+     * Charge les propriétés de configuration pour un profil spécifique.
+     *
+     * @param environment environnement d'exécution
+     * @param profile     profil actif
+     */
+    private void loadProfileConfigurationProperties(Environment environment, String profile) {
+
+        if (profile == null || profile.isBlank())
+            return;
+
+        loadProfileVariant(environment, "application.yaml", profile);
+        loadProfileVariant(environment, "application.yml", profile);
+        loadProfileVariant(environment, "application.json", profile);
+    }
+
+    /**
+     * Charge les propriétés de configuration pour un profil spécifique.
+     *
+     * @param environment environnement d'exécution
+     * @param path        chemin du fichier de configuration
+     * @param profile     profil actif
+     */
+    private void loadConfigurationPropertiesWithProfile(Environment environment, String path, String profile) {
+
+        loadConfigurationProperties(environment, path, true);
+
+        if (profile == null || profile.isBlank())
+            return;
+
+        loadProfileVariant(environment, path, profile);
+    }
+
+    /**
+     * Charge les propriétés de configuration pour un profil spécifique.
+     *
+     * @param environment environnement d'exécution
+     * @param path        chemin du fichier de configuration
+     * @param profile     profil actif
+     */
+    private void loadProfileVariant(Environment environment, String path, String profile) {
+
+        String profiledPath = buildProfiledPath(path, profile);
+        if (profiledPath != null)
+            loadConfigurationProperties(environment, profiledPath, false);
+
+        String lowerCaseProfile = profile.toLowerCase();
+        if (!lowerCaseProfile.equals(profile)) {
+
+            String lowerCaseProfiledPath = buildProfiledPath(path, lowerCaseProfile);
+
+            if (lowerCaseProfiledPath != null)
+                loadConfigurationProperties(environment, lowerCaseProfiledPath, false);
+        }
+    }
+
+    /**
+     * Construit le chemin du fichier de configuration pour un profil spécifique.
+     *
+     * @param path    chemin du fichier de configuration
+     * @param profile profil actif
+     * @return chemin du fichier de configuration pour le profil, ou null si le fichier n'existe pas
+     */
+    private String buildProfiledPath(String path, String profile) {
+
+        if (path == null || profile == null || profile.isBlank())
+            return null;
+
+        if (!(isYaml(path) || isJson(path)))
+            return null;
+
+        int extensionIndex = path.lastIndexOf('.');
+        if (extensionIndex <= 0)
+            return null;
+
+        String basePath = path.substring(0, extensionIndex);
+        String extension = path.substring(extensionIndex);
+
+        return basePath + "-" + profile + extension;
+    }
+
+    /**
+     * Charge les propriétés de configuration depuis un fichier donné.
+     *
+     * @param environment environnement d'exécution
+     * @param path        chemin du fichier de configuration
+     * @param required    indique si le fichier est obligatoire
+     */
+    private void loadConfigurationProperties(Environment environment, String path, boolean required) {
+
+        if (path == null)
+            return;
+
+        if (required)
+            checkConfigurationProperties(path);
+
+        URL url = appClass.getClassLoader().getResource(path);
+        if (url == null)
+            return;
+
+        if (!required && !(isYaml(path) || isJson(path)))
+            return;
+
+        ObjectMapper objectMapper = createObjectMapper(path);
+        Map<String, Object> map = deserializeToMap(url, objectMapper, path);
+
+        if (map != null && !map.isEmpty()) {
+
+            environment.putProperties(map);
+
+            for (Map.Entry<String, Object> entry : map.entrySet())
+                setupConfigurationProperties(environment, entry.getKey(), entry.getValue());
+        }
     }
 
     /**
