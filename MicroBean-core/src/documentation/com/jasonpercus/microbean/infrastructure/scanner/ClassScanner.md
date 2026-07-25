@@ -108,20 +108,39 @@ Sans cette étape, le framework risquerait :
   - ciblant `ElementType.TYPE`.
 - Exclut explicitement `@Condition`, `@MicroBeanApplication`, `@Primary`, `@Profile`.
 
-### `private void filterScannedClass(ScanResult scanResult, Set<Class<?>> classes)`
+### `private void filterScannedClass(ScanResult scanResult, Set<Class<?>> componentsClasses, Set<Class<?>> othersClasses)`
 
 - Parcourt les annotations retournées par `getAnnotationClassToScan()`.
-- Pour chaque annotation :
+- Extrait et isole les classes annotées `@ModuleInit` de la map.
+- Appelle `getOthersAnnotationsToKeep(moduleInitClassInfo)` pour obtenir les annotations à conserver.
+- Pour chaque annotation restante :
   - récupère les classes annotées,
   - applique `checkingClass(...)`,
   - appelle `analyseAndPushAnnotatedClass(...)`.
+
+### `private Set<Class<? extends Annotation>> getOthersAnnotationsToKeep(Set<ClassInfo> moduleInitClassInfo)`
+
+Récupère la liste des annotations à conserver pour les classes invalidées annotées via `@ModuleInit`.
+
+Comportement détaillé :
+
+- Si `moduleInitClassInfo` est `null` → retourne un ensemble vide immédiatement.
+- Pour chaque classe dans `moduleInitClassInfo` :
+  - vérifie si elle implémente `IModuleInit` ;
+  - si oui, instancie la classe via le constructeur sans argument ;
+  - appelle `keepAnnotatedClassForContext(set)` pour enrichir l'ensemble des annotations ;
+  - si le constructeur lève une exception : journalise l'erreur via `LogHelper.error(...)` et ignore le module.
+- Retourne l'ensemble complet des annotations déclarées par tous les modules valides.
 
 ### `private void analyseAndPushAnnotatedClass(...)`
 
 - Charge la classe (`classInfo.loadClass()`).
 - Instancie `ScanningValidator` avec `args`.
-- Si `validator.invalidate()` vaut `true` : ignore la classe.
-- Sinon : ajoute la classe au résultat et log en debug.
+- Si `validator.invalidate()` vaut `true` :
+  - vérifie si la classe porte une annotation présente dans `annotationsSearchedToAddToOthersClasses` ;
+  - si oui : l'ajoute à `otherClasses` ;
+  - sinon : la classe est ignorée.
+- Sinon : ajoute la classe à `componentClasses` et log en debug.
 
 ### `private static boolean filterRetentionAndTarget(Class<? extends Annotation> annotation)`
 
@@ -147,31 +166,51 @@ flowchart TD
     A[searchAnnotatedClass] --> B["scanPackages(basePackages)"]
     B --> C[ScanResult]
     C --> C1[getAnnotationClassToScan]
-    C1 --> D[Pour chaque annotation valide du package api]
-    D --> E[getClassesWithAnnotation]
-    E --> F{checkingClass ?}
-    F -- Non --> G[Ignorer]
-    F -- Oui --> H[loadClass]
-    H --> I[ScanningValidator.invalidate]
-    I -- True --> G
-    I -- False --> J[Ajouter la classe au Set]
-    J --> K[Log debug composant trouvé]
-    K --> D
-    G --> D
-    D --> L[Retourner Set<Class<?>>]
+    C1 --> D["Trier annotations — @ModuleInit en tête"]
+    D --> E[filterScannedClass]
+    E --> F["Extraire classes @ModuleInit"]
+    F --> G["getOthersAnnotationsToKeep(moduleInitClassInfo)"]
+    G --> G1{moduleInitClassInfo null ?}
+    G1 -- Oui --> G2[Retourner ensemble vide]
+    G1 -- Non --> G3["Pour chaque classe @ModuleInit"]
+    G3 --> G4{implémente IModuleInit ?}
+    G4 -- Non --> G5[Ignorer silencieusement]
+    G4 -- Oui --> G6[Instancier + keepAnnotatedClassForContext]
+    G6 --> G7{Exception constructeur ?}
+    G7 -- Oui --> G8[LogHelper.error + ignorer]
+    G7 -- Non --> G9[Ajouter annotations au set]
+    G2 --> H
+    G9 --> H
+    H[Pour chaque annotation restante] --> I[getClassesWithAnnotation]
+    I --> J{checkingClass ?}
+    J -- Non --> K[Ignorer]
+    J -- Oui --> L[loadClass]
+    L --> M[ScanningValidator.invalidate]
+    M -- False --> N[componentClasses.add + Log debug]
+    M -- True --> O{porte une annotation du set IModuleInit ?}
+    O -- Oui --> P[otherClasses.add]
+    O -- Non --> K
+    N --> H
+    P --> H
+    K --> H
+    H --> Q["Retourner (componentClasses, otherClasses)"]
 ```
 
 ---
 
 ## 5) 📐 Contrats implicites importants (pour la maintenance)
 
-- Les annotations scannées sont découvertes dynamiquement dans le package `api`.
+- Les annotations scannées sont découvertes dynamiquement dans le package `api` et `infrastructure.api`.
 - Seules les annotations `RUNTIME` ciblant `TYPE` sont retenues.
 - `@Condition`, `@MicroBeanApplication`, `@Primary` et `@Profile` sont volontairement exclues de la détection composant.
+- Les classes `@ModuleInit` sont toujours traitées **en priorité** dans la boucle de scan.
+- Les classes `@ModuleInit` ne sont **jamais** ajoutées à `componentClasses` ni à `otherClasses`.
+- Si une classe `@ModuleInit` n'implémente pas `IModuleInit`, elle est silencieusement ignorée.
+- Si le constructeur d'un `IModuleInit` lève une exception, elle est absorbée et journalisée.
 - Le filtrage technique (`checkingClass`) est appliqué **avant** la validation métier.
-- Une classe invalidée par `ScanningValidator` ne doit jamais être ajoutée au résultat.
-- Le résultat est un `Set` : absence de doublons attendue.
-- Le log debug doit uniquement concerner les classes effectivement retenues.
+- Une classe invalidée par `ScanningValidator` ET portant une annotation déclarée par un `IModuleInit` va dans `otherClasses`.
+- Une classe invalidée sans annotation du set va dans aucun ensemble (ignorée totalement).
+- Le résultat `componentClasses` est un `Set` : absence de doublons attendue.
 
 ---
 
@@ -181,9 +220,11 @@ Si vous modifiez `ClassScanner`, vérifier en priorité :
 
 1. **Ordre des filtres** : ne pas inverser filtre technique et validation métier.
 2. **Découverte des annotations** : tout changement sur `getAnnotationClassToScan(...)` ou `filterRetentionAndTarget(...)` impacte la découverte.
-3. **Performance** : le scan de packages larges peut coûter cher.
-4. **Traçage debug** : garder des logs fidèles aux classes réellement retenues.
-5. **Compatibilité aval** : `Processor` dépend de la qualité de la liste renvoyée.
+3. **Priorité de traitement de `@ModuleInit`** : si le comparateur change, les annotations des modules ne seront pas connues à temps.
+4. **`getOthersAnnotationsToKeep`** : si le `remove(ModuleInit...)` est supprimé, les classes `@ModuleInit` pourraient atterrir dans `componentClasses`.
+5. **Performance** : le scan de packages larges peut coûter cher.
+6. **Traçage debug** : garder des logs fidèles aux classes réellement retenues.
+7. **Compatibilité aval** : `Processor` dépend de la qualité de la liste renvoyée dans `componentClasses`.
 
 > 🛡️ Recommandation : toute évolution de cette classe doit être validée en unitaire (`ClassScannerTest`) et en Cucumber (`classscanner.feature`).
 
@@ -208,12 +249,23 @@ Cas couverts :
   - target sans `TYPE`,
   - target incluant `TYPE`.
 
+**Tests dédiés à `getOthersAnnotationsToKeep` :**
+
+| Test                                                                                                 | Scénario couvert                                      |
+|------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| `doit_retourner_un_ensemble_vide_quand_moduleInitClassInfo_est_null`                                 | paramètre `null` → ensemble vide retourné             |
+| `doit_collecter_les_annotations_via_un_imoduleinit_valide`                                           | `ValidModuleInit` expose `@CustomComponentAnnotation` |
+| `doit_ignorer_silencieusement_une_classe_moduleinit_sans_imoduleinit`                                | `ModuleInitWithoutIModuleInit` → silencieux           |
+| `doit_absorber_l_exception_de_constructeur_d_un_imoduleinit_defaillant`                              | `FailingModuleInit` → exception absorbée              |
+| `doit_placer_dans_otherClasses_une_classe_invalidee_portant_une_annotation_declaree_par_imoduleinit` | classe invalidée par profil → `otherClasses`          |
+
 Fixtures utilisées :
 
 - `src/test/java/com/jasonpercus/microbean/infrastructure/scanner/fixtures/valid/...`
 - `src/test/java/com/jasonpercus/microbean/infrastructure/scanner/fixtures/excluded/...`
 - `src/test/java/com/jasonpercus/microbean/infrastructure/scanner/fixtures/empty/...`
 - `src/test/java/com/jasonpercus/microbean/infrastructure/scanner/fixtures/invalidated/...`
+- `src/test/java/com/jasonpercus/microbean/infrastructure/scanner/fixtures/moduleinit/...` _(nouveau)_
 
 ### 7.2 🥒 Tests Cucumber (intégration comportementale)
 
@@ -237,13 +289,15 @@ Elle confirme indirectement que le scan alimente correctement le pipeline nomina
 
 ---
 
-## 8) 🧰 Ce qu’un mainteneur doit retenir
+## 8) 🧰 Ce qu'un mainteneur doit retenir
 
-- `ClassScanner` est la porte d’entrée de la découverte des composants.
-- Deux filtres s’enchaînent : technique puis métier.
-- Le résultat doit rester propre (classes concrètes, autorisées, sans doublon).
+- `ClassScanner` est la porte d'entrée de la découverte des composants.
+- Deux filtres s'enchaînent : technique puis métier.
+- Les classes `@ModuleInit` sont traitées en priorité pour alimenter le set `annotationsSearchedToAddToOthersClasses`.
+- Une classe invalidée ET portant une annotation déclarée par un module finit dans `otherClasses` (pas ignorée).
+- Le résultat `componentClasses` doit rester propre (classes concrètes, autorisées, sans doublon).
 - La moindre régression ici impacte fortement `Processor` et le démarrage global.
-- Les tests actuels couvrent à la fois le détail local et l’intégration comportementale.
+- Les tests actuels couvrent à la fois le détail local et l'intégration comportementale.
 
 ---
 

@@ -152,7 +152,22 @@ flowchart TD
 
 ## 5) 🧠 Comportement méthode par méthode
 
-## 5.1 📥 Enregistrement des définitions
+## 5.0 📂 Accès aux classes scannées
+
+### `getComponentClasses()`
+
+- Retourne l'ensemble **immuable** des classes annotées "component" transmises au constructeur par le `Processor`.
+- Correspond aux classes qui passeront par le pipeline d'enregistrement des beans.
+- L'ensemble est trié (basé sur un `SortedSet`) et non modifiable (`Collections.unmodifiableSortedSet`).
+- Toute tentative de modification lève `UnsupportedOperationException`.
+
+### `getOtherClasses()`
+
+- Retourne l'ensemble **immuable** des autres classes annotées (non-composants) validées par les modules `@ModuleInit`.
+- Ces classes ne sont pas enregistrées comme beans injectables, mais sont transmises au contexte pour un usage module-spécifique.
+- Même garanties que `getComponentClasses()` : immuable, trié.
+
+---
 
 ### `register(BeanDefinition<?> beanDefinition)`
 
@@ -451,11 +466,24 @@ Fichier : `src/test/java/com/jasonpercus/microbean/infrastructure/factory/Contex
 Les tests unitaires couvrent notamment :
 
 ### Résolution nominale
-- récupération d’un bean par type ;
-- récupération d’un bean par nom + type ;
+- récupération d'un bean par type ;
+- récupération d'un bean par nom + type ;
 - récupération des beans par annotation (`getBeansByAnnotation`) ;
 - récupération des types par annotation (`getBeanTypesByAnnotation`) ;
 - validation de résolvabilité par type et par nom.
+
+### Accès aux classes scannées
+- `getComponentClasses()` retourne un ensemble vide quand le contexte est créé sans classes ;
+- `getComponentClasses()` retourne exactement les classes passées au constructeur ;
+- `getComponentClasses()` retourne un ensemble non modifiable (`UnsupportedOperationException`) ;
+- `getOtherClasses()` retourne un ensemble vide quand le contexte est créé sans autres classes ;
+- `getOtherClasses()` retourne exactement les autres classes passées au constructeur ;
+- `getOtherClasses()` retourne un ensemble non modifiable ;
+- indépendance entre `componentClasses` et `otherClasses` (pas de pollution croisée).
+
+> Ces tests valident le contrat d'accès en lecture au registre des classes scannées, ainsi que l'immuabilité garantie par `Collections.unmodifiableSortedSet`.
+
+---
 
 ### Cas d’erreur
 - aucun bean trouvé pour un type ;

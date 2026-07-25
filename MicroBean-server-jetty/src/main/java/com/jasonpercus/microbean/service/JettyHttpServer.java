@@ -8,10 +8,11 @@ package com.jasonpercus.microbean.service;
  */
 
 import java.util.EnumSet;
-import com.jasonpercus.microbean.api.Service;
-import com.jasonpercus.microbean.api.server.HttpServer;
-import com.jasonpercus.microbean.api.server.HttpRequestsListener;
-import com.jasonpercus.microbean.api.server.exception.HttpServerException;
+import java.util.List;
+import java.util.Map;
+import com.jasonpercus.microbean.infrastructure.api.HttpServer;
+import com.jasonpercus.microbean.infrastructure.api.IHttpServer;
+import com.jasonpercus.microbean.infrastructure.exception.HttpServerException;
 import com.jasonpercus.microbean.infrastructure.helpers.LogHelper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
@@ -21,41 +22,40 @@ import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.ContextHandlerCollection;
 
-@Service
-public class JettyHttpServer implements HttpServer {
+@HttpServer(name = "jetty")
+public class JettyHttpServer implements IHttpServer {
 
-    private Server server;
-    private ServletContextHandler context;
+    private Server jetty;
+    private Map<String, ServletContextHandler> contexts;
     private String hostname;
     private int port;
 
     @Override
-    public void initialize(String hostname, int port, boolean logRequests, HttpRequestsListener httpRequestsListener) {
+    public void initialize(String hostname, int port, List<String> contextPaths) {
         this.hostname = getHostname(hostname);
         this.port = getPort(port);
+        this.contexts = new java.util.HashMap<>();
 
-        server = new Server();
+        jetty = new Server();
+        jetty.setStopAtShutdown(true);
 
-        ServerConnector connector = new ServerConnector(server);
+        ServerConnector connector = new ServerConnector(jetty);
         connector.setHost(this.hostname);
         connector.setPort(this.port);
 
-        server.addConnector(connector);
-        server.setStopAtShutdown(true);
+        jetty.addConnector(connector);
 
-        context = new ServletContextHandler(ServletContextHandler.SESSIONS);
-        context.setContextPath("/");
-
-        server.setHandler(context);
+        addContextPaths(contextPaths);
     }
 
     @Override
     public void start() throws HttpServerException {
         try {
             LogHelper.info("Starting Jetty server on %s:%d".formatted(hostname, port));
-            server.start();
-            server.join();
+            jetty.start();
+            jetty.join();
         } catch(Exception e) {
             throw new HttpServerException("Failed to start Jetty server", e);
         }
@@ -64,10 +64,10 @@ public class JettyHttpServer implements HttpServer {
     @Override
     public void stop() throws HttpServerException {
         try {
-            if(server != null) {
-                server.stop();
-                server.destroy();
-                server = null;
+            if(jetty != null) {
+                jetty.stop();
+                jetty.destroy();
+                jetty = null;
             }
         } catch(Exception e) {
             throw new HttpServerException("Failed to stop Jetty server", e);
@@ -75,7 +75,12 @@ public class JettyHttpServer implements HttpServer {
     }
 
     @Override
-    public void registerServlet(String path, Servlet servlet) {
+    public void registerServlet(String contextPath, String path, Servlet servlet) {
+
+        ServletContextHandler context = contexts.get(contextPath);
+
+        if (context == null)
+            return;
 
         ServletHolder holder = new ServletHolder(servlet);
 
@@ -83,11 +88,36 @@ public class JettyHttpServer implements HttpServer {
     }
 
     @Override
-    public void registerFilter(String path, Filter filter) {
+    public void registerFilter(String contextPath, String path, Filter filter) {
+
+        ServletContextHandler context = contexts.get(contextPath);
+
+        if (context == null)
+            return;
 
         FilterHolder holder = new FilterHolder(filter);
 
         context.addFilter(holder, path, EnumSet.of(DispatcherType.REQUEST));
+    }
+
+    private void addContextPaths(List<String> contextPaths) {
+
+        ContextHandlerCollection contextHandlerCollection = new ContextHandlerCollection();
+
+        for (String contextPath : contextPaths) {
+
+            if (contextPath == null || contextPath.isBlank())
+                contextPath = "/";
+
+            ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+            context.setContextPath(contextPath);
+
+            contextHandlerCollection.addHandler(context);
+
+            contexts.put(contextPath, context);
+        }
+
+        jetty.setHandler(contextHandlerCollection);
     }
 
     private String getHostname(String hostname) {

@@ -100,6 +100,9 @@ public class AppExecutor {
     static void getTask(ApplicationEntryPoint mainService, String[] args) {
         try {
             mainService.main(args);
+        } catch (MicroBeanException e) {
+            error("MicroBean initialization failed", e);
+            throw e;
         } catch (Exception e) {
             error("MicroBean initialization failed", e);
             throw new MicroBeanException(e);
@@ -123,7 +126,8 @@ public class AppExecutor {
      * @throws RuntimeException si plus d'un entry point est déclaré en {@code ONE_SHOT}
      */
     private static void prepareAndExecuteEntryPointService(Class<? extends ApplicationEntryPoint> aep, Consumer<Context> contextConsumer, String[] args, Context context, AtomicInteger countOneShot, AtomicInteger countLongRunning) {
-        ApplicationEntryPoint mainService = (ApplicationEntryPoint) context.getBean(aep);
+
+        ApplicationEntryPoint mainService = context.getBean(aep);
 
         if (contextConsumer != null)
             contextConsumer.accept(context);

@@ -198,6 +198,255 @@ class EnvironmentTest {
         assertThat(properties.application.debug).isTrue();
     }
 
+    // -------------------------------------------------------------------------
+    // Tests : getProperties() — map brute
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Doit retourner une map vide pour getProperties() quand aucune propriété n'est chargée")
+    void doit_retourner_une_map_vide_pour_getproperties_quand_aucune_propriete_n_est_chargee() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        Map<String, Object> props = env.getProperties();
+
+        // Then
+        assertThat(props).isNotNull();
+        assertThat(props).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Doit retourner les propriétés brutes après putProperties")
+    void doit_retourner_les_proprietes_brutes_apres_putproperties() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperties(Map.of("server", Map.of("port", 8080)));
+
+        // When
+        Map<String, Object> props = env.getProperties();
+
+        // Then
+        assertThat(props).containsKey("server");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> server = (Map<String, Object>) props.get("server");
+        assertThat(server).containsEntry("port", 8080);
+    }
+
+    @Test
+    @DisplayName("Doit retourner la même référence de map à chaque appel de getProperties()")
+    void doit_retourner_la_meme_reference_de_map_a_chaque_appel_de_getproperties() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        Map<String, Object> props1 = env.getProperties();
+        Map<String, Object> props2 = env.getProperties();
+
+        // Then
+        assertThat(props1).isSameAs(props2);
+    }
+
+    @Test
+    @DisplayName("Doit ignorer putProperties null sans modifier les propriétés existantes")
+    void doit_ignorer_putproperties_null_sans_modifier_les_proprietes_existantes() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperties(Map.of("key", "value"));
+
+        // When
+        env.putProperties(null);
+
+        // Then
+        assertThat(env.getProperties()).containsEntry("key", "value");
+    }
+
+    @Test
+    @DisplayName("Doit ignorer putProperties vide sans modifier les propriétés existantes")
+    void doit_ignorer_putproperties_vide_sans_modifier_les_proprietes_existantes() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperties(Map.of("key", "value"));
+
+        // When
+        env.putProperties(Map.of());
+
+        // Then
+        assertThat(env.getProperties()).containsEntry("key", "value");
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests : getFlatProperties()
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Doit retourner une map vide pour getFlatProperties() quand aucune propriété n'est définie")
+    void doit_retourner_une_map_vide_pour_getflatproperties_quand_aucune_propriete_n_est_definie() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        Map<String, Object> flat = env.getFlatProperties();
+
+        // Then
+        assertThat(flat).isNotNull();
+        assertThat(flat).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Doit retourner les propriétés plates après putProperty")
+    void doit_retourner_les_proprietes_plates_apres_putproperty() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperty("server.port", 9090);
+        env.putProperty("app.name", "microbean");
+
+        // When
+        Map<String, Object> flat = env.getFlatProperties();
+
+        // Then
+        assertThat(flat).containsEntry("server.port", 9090);
+        assertThat(flat).containsEntry("app.name", "microbean");
+    }
+
+    @Test
+    @DisplayName("Doit retourner la même référence de map à chaque appel de getFlatProperties()")
+    void doit_retourner_la_meme_reference_de_map_a_chaque_appel_de_getflatproperties() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        Map<String, Object> flat1 = env.getFlatProperties();
+        Map<String, Object> flat2 = env.getFlatProperties();
+
+        // Then
+        assertThat(flat1).isSameAs(flat2);
+    }
+
+    @Test
+    @DisplayName("Doit accumuler les propriétés plates lors de plusieurs appels putProperty")
+    void doit_accumuler_les_proprietes_plates_lors_de_plusieurs_appels_putproperty() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        env.putProperty("key1", "v1");
+        env.putProperty("key2", 42);
+        env.putProperty("key3", true);
+
+        // Then
+        Map<String, Object> flat = env.getFlatProperties();
+        assertThat(flat).hasSize(3);
+        assertThat(flat).containsEntry("key1", "v1");
+        assertThat(flat).containsEntry("key2", 42);
+        assertThat(flat).containsEntry("key3", true);
+    }
+
+    @Test
+    @DisplayName("Doit écraser la valeur existante lors de putProperty sur une clé déjà présente")
+    void doit_ecraser_la_valeur_existante_lors_de_putproperty_sur_une_cle_deja_presente() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperty("port", 8080);
+
+        // When
+        env.putProperty("port", 9090);
+
+        // Then
+        assertThat(env.getFlatProperties()).containsEntry("port", 9090);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests : getProperty(String key)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Doit retourner null pour getProperty quand la clé est inconnue")
+    void doit_retourner_null_pour_getproperty_quand_la_cle_est_inconnue() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        Object result = env.getProperty("inexistant");
+
+        // Then
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("Doit retourner la valeur correcte pour getProperty après putProperty")
+    void doit_retourner_la_valeur_correcte_pour_getproperty_apres_putproperty() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperty("app.debug", true);
+
+        // When
+        Object result = env.getProperty("app.debug");
+
+        // Then
+        assertThat(result).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("Doit retourner null pour getProperty avec une clé null")
+    void doit_retourner_null_pour_getproperty_avec_une_cle_null() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+
+        // When
+        Object result = env.getProperty(null);
+
+        // Then
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("Doit retourner la dernière valeur après plusieurs putProperty sur la même clé")
+    void doit_retourner_la_derniere_valeur_apres_plusieurs_putproperty_sur_la_meme_cle() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperty("server.host", "localhost");
+        env.putProperty("server.host", "production.example.com");
+
+        // When
+        Object result = env.getProperty("server.host");
+
+        // Then
+        assertThat(result).isEqualTo("production.example.com");
+    }
+
+    @Test
+    @DisplayName("Doit accéder aux clés plates injectées manuellement via putProperty depuis la map getFlatProperties")
+    void doit_acceder_aux_cles_plates_injectees_manuellement_via_getflatproperties() {
+
+        // Given
+        Environment env = new Environment(new String[0]);
+        env.putProperty("feature.flag", "enabled");
+
+        // When
+        Object viaGetProperty = env.getProperty("feature.flag");
+        Object viaFlatMap = env.getFlatProperties().get("feature.flag");
+
+        // Then — les deux accès doivent retourner la même valeur
+        assertThat(viaGetProperty).isEqualTo("enabled");
+        assertThat(viaFlatMap).isEqualTo("enabled");
+        assertThat(viaGetProperty).isEqualTo(viaFlatMap);
+    }
+
     private static class AppProperties {
 
         public int serverPort;

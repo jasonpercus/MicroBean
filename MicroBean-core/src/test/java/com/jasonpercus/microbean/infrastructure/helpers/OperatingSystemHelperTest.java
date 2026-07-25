@@ -9,15 +9,17 @@ package com.jasonpercus.microbean.infrastructure.helpers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.util.Comparator;
+import java.util.TreeSet;
+import com.jasonpercus.microbean.MicroBean;
 import com.jasonpercus.microbean.api.Adapter;
+import com.jasonpercus.microbean.api.OS;
 import com.jasonpercus.microbean.api.Service;
 import com.jasonpercus.microbean.infrastructure.factory.BeanDefinition;
 import com.jasonpercus.microbean.infrastructure.factory.Context;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import com.jasonpercus.microbean.MicroBean;
-import com.jasonpercus.microbean.api.OS;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -214,7 +216,7 @@ class OperatingSystemHelperTest {
     void doit_evaluer_la_compatibilite_depuis_une_bean_definition_d_adapter() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> beanDefinition = new BeanDefinition<>(AdapterWindowsDeTest.class, context);
 
         // When / Then
@@ -232,7 +234,7 @@ class OperatingSystemHelperTest {
         // Given
         System.setProperty("os.name", "SomeUnknownOS");
         MicroBean.clearCurrentOS();
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> beanDefinition = new BeanDefinition<>(ServiceSansRestrictionOsDeTest.class, context);
 
         // When
@@ -241,6 +243,11 @@ class OperatingSystemHelperTest {
         // Then
         assertThat(beanDefinition.getOs()).containsExactly(OS.ALL);
         assertThat(compatible).isTrue();
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     private static void restoreProperty(String propertyName, String value) {

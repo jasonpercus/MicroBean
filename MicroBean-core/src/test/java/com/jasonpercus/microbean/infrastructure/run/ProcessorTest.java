@@ -9,7 +9,9 @@ package com.jasonpercus.microbean.infrastructure.run;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.util.Comparator;
 import java.util.Set;
+import java.util.TreeSet;
 import com.jasonpercus.microbean.MicroBean;
 import com.jasonpercus.microbean.api.OS;
 import com.jasonpercus.microbean.infrastructure.factory.Context;
@@ -19,14 +21,14 @@ import com.jasonpercus.microbean.infrastructure.run.processor.P_BeanConditionMet
 import com.jasonpercus.microbean.infrastructure.run.processor.P_BeanDeConfiguration;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_BeanIgnore;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_BeanProfile;
+import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationNominal;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanConditionNegate;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanConditionValid;
+import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanPrimitiveVoid;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanPrivate;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanProfile;
-import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanPrimitiveVoid;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithBeanVoid;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationWithMethodNotBean;
-import com.jasonpercus.microbean.infrastructure.run.processor.P_ConfigurationNominal;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ServiceConditionError;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ServiceConditionFalse;
 import com.jasonpercus.microbean.infrastructure.run.processor.P_ServiceConditionTrue;
@@ -65,7 +67,7 @@ class ProcessorTest {
     void doit_enregistrer_un_bean_de_configuration_et_un_service_quand_les_regles_sont_satisfaites() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationNominal.class, P_ServiceNominal.class);
 
         // When
@@ -83,7 +85,7 @@ class ProcessorTest {
     void doit_ignorer_les_methodes_non_annotees_bean_dans_une_configuration() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationWithMethodNotBean.class);
 
         // When
@@ -99,7 +101,7 @@ class ProcessorTest {
     void doit_echouer_si_une_methode_bean_n_est_pas_publique() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationWithBeanPrivate.class);
 
         // When
@@ -120,7 +122,7 @@ class ProcessorTest {
     void doit_echouer_si_une_methode_bean_retourne_void() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classesWithPrimitiveVoid = Set.of(P_ConfigurationWithBeanPrimitiveVoid.class);
         Set<Class<?>> classesWithVoid = Set.of(P_ConfigurationWithBeanVoid.class);
 
@@ -151,7 +153,7 @@ class ProcessorTest {
 
         // Given
         System.setProperty("app.profile", "prod");
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationWithBeanProfile.class);
 
         // When
@@ -167,7 +169,7 @@ class ProcessorTest {
 
         // Given
         System.setProperty("app.profile", "dev");
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationWithBeanProfile.class);
 
         // When
@@ -184,7 +186,7 @@ class ProcessorTest {
 
         // Given
         System.setProperty("app.profile", "prod");
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ServiceProfileInvalid.class);
 
         // When
@@ -200,7 +202,7 @@ class ProcessorTest {
 
         // Given
         System.setProperty("app.profile", "dev");
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ServiceProfileValid.class);
 
         // When
@@ -217,7 +219,7 @@ class ProcessorTest {
 
         // Given
         System.setProperty(MicroBean.PROPERTY_MICROBEAN_OS, OS.LINUX.name());
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_AdapterWindows.class);
 
         // When
@@ -233,7 +235,7 @@ class ProcessorTest {
 
         // Given
         System.setProperty(MicroBean.PROPERTY_MICROBEAN_OS, OS.WINDOWS.name());
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_AdapterWindows.class);
 
         // When
@@ -249,7 +251,7 @@ class ProcessorTest {
     void doit_enregistrer_un_bean_de_configuration_quand_la_methode_est_annotee_avec_une_condition_valide() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationWithBeanConditionValid.class);
 
         // When
@@ -265,7 +267,7 @@ class ProcessorTest {
     void doit_ignorer_un_bean_de_configuration_quand_la_methode_utilise_une_condition_negatee_valide() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ConfigurationWithBeanConditionNegate.class);
 
         // When
@@ -280,7 +282,7 @@ class ProcessorTest {
     void doit_ignorer_un_service_quand_la_condition_demande_un_skip() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ServiceConditionFalse.class);
 
         // When
@@ -295,7 +297,7 @@ class ProcessorTest {
     void doit_enregistrer_un_service_quand_la_condition_est_satisfaite_selon_la_logique_du_processor() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ServiceConditionTrue.class);
 
         // When
@@ -311,7 +313,7 @@ class ProcessorTest {
     void doit_echouer_quand_l_evaluation_d_une_condition_leve_une_exception() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Set<Class<?>> classes = Set.of(P_ServiceConditionError.class);
 
         // When
@@ -324,6 +326,11 @@ class ProcessorTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to evaluate condition")
                 .hasCauseInstanceOf(RuntimeException.class);
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     private static void restoreProperty(String propertyName, String value) {

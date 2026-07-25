@@ -10,8 +10,10 @@ package com.jasonpercus.microbean.infrastructure.factory;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -19,10 +21,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import com.jasonpercus.microbean.api.Bean;
 import com.jasonpercus.microbean.api.Configuration;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 @DisplayName("Tests de sécurité de thread pour le Context")
 class ContextThreadSafetyTest {
@@ -34,7 +36,7 @@ class ContextThreadSafetyTest {
         // Given
         ConcurrentSingletonConfig.createdCount.set(0);
 
-        Context context = new Context();
+        Context context = createContext();
         ConcurrentSingletonConfig config = new ConcurrentSingletonConfig();
         Method factoryMethod = ConcurrentSingletonConfig.class.getDeclaredMethod("singletonBean");
         BeanDefinition<?> definition = new BeanDefinition<>(config, factoryMethod, context);
@@ -73,6 +75,11 @@ class ContextThreadSafetyTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     static class SingletonBean {

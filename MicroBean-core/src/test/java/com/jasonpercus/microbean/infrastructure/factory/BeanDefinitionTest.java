@@ -18,9 +18,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Comparator;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import com.jasonpercus.microbean.api.Adapter;
 import com.jasonpercus.microbean.api.Bean;
 import com.jasonpercus.microbean.api.EntryPointService;
@@ -29,6 +29,8 @@ import com.jasonpercus.microbean.api.OS;
 import com.jasonpercus.microbean.api.Primary;
 import com.jasonpercus.microbean.api.Scope;
 import com.jasonpercus.microbean.api.Service;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 @DisplayName("Tests unitaires de la classe BeanDefinition")
 class BeanDefinitionTest {
@@ -38,7 +40,7 @@ class BeanDefinitionTest {
     void doit_construire_une_definition_depuis_une_methode_bean_avec_les_metadonnees_attendues() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         ConfigurationFixture configuration = new ConfigurationFixture();
         Method method = ConfigurationFixture.class.getDeclaredMethod("creer_bean_depuis_methode");
 
@@ -58,7 +60,7 @@ class BeanDefinitionTest {
     void doit_echouer_si_la_methode_du_constructeur_n_est_pas_annotee_bean() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         ConfigurationFixture configuration = new ConfigurationFixture();
         Method method = ConfigurationFixture.class.getDeclaredMethod("methode_non_bean");
 
@@ -74,7 +76,7 @@ class BeanDefinitionTest {
     void doit_construire_une_definition_de_service_avec_scope_nom_et_primary() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<ServiceFixture> definition = new BeanDefinition<>(ServiceFixture.class, context);
@@ -92,7 +94,7 @@ class BeanDefinitionTest {
     void doit_construire_une_definition_d_adapter_avec_os_dedie() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<AdapterFixture> definition = new BeanDefinition<>(AdapterFixture.class, context);
@@ -110,7 +112,7 @@ class BeanDefinitionTest {
     void doit_construire_une_definition_d_entrypoint_avec_valeurs_par_defaut() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<EntryPointFixture> definition = new BeanDefinition<>(EntryPointFixture.class, context);
@@ -128,7 +130,7 @@ class BeanDefinitionTest {
     void doit_echouer_si_la_classe_du_constructeur_n_est_pas_un_composant_supporte() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When & Then
         assertThatThrownBy(() -> new BeanDefinition<>(ClasseSansAnnotation.class, context))
@@ -142,7 +144,7 @@ class BeanDefinitionTest {
     void doit_creer_un_bean_via_la_factory_de_methode() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         ConfigurationFixture configuration = new ConfigurationFixture();
         Method method = ConfigurationFixture.class.getDeclaredMethod("creer_bean_depuis_methode");
         BeanDefinition<?> definition = new BeanDefinition<>(configuration, method, context);
@@ -162,7 +164,7 @@ class BeanDefinitionTest {
     void doit_creer_un_bean_via_la_factory_de_classe() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<ServiceFixture> definition = new BeanDefinition<>(ServiceFixture.class, context);
 
         // When
@@ -177,7 +179,7 @@ class BeanDefinitionTest {
     void doit_construire_une_definition_de_service_depuis_une_meta_annotation_avec_attributs_surcharges() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<MetaServiceAvecAttributsFixture> definition =
@@ -193,7 +195,7 @@ class BeanDefinitionTest {
     void doit_retourner_les_valeurs_par_defaut_de_la_meta_annotation_service_quand_elle_ne_possede_pas_les_attributs() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<MetaServiceSansAttributsFixture> definition =
@@ -209,7 +211,7 @@ class BeanDefinitionTest {
     void doit_construire_une_definition_d_adapter_depuis_une_meta_annotation_avec_attributs_surcharges() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<MetaAdapterAvecAttributsFixture> definition =
@@ -226,7 +228,7 @@ class BeanDefinitionTest {
     void doit_retourner_les_valeurs_par_defaut_de_la_meta_annotation_adapter_quand_elle_ne_possede_pas_les_attributs() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<MetaAdapterSansAttributsFixture> definition =
@@ -343,7 +345,7 @@ class BeanDefinitionTest {
 
         // Given — @MarqueurNeutre est posé AVANT @CustomServiceSansAttributs :
         // le premier tour de boucle retourne false, le second retourne true → extractService est appelé
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<MetaServiceAvecMarqueurNeutreFixture> definition =
@@ -360,7 +362,7 @@ class BeanDefinitionTest {
 
         // Given — @MarqueurNeutre est posé AVANT @CustomAdapterSansAttributs :
         // le premier tour de boucle retourne false, le second retourne true → extractAdapter est appelé
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         BeanDefinition<MetaAdapterAvecMarqueurNeutreFixture> definition =
@@ -370,6 +372,11 @@ class BeanDefinitionTest {
         assertThat(definition.getName()).isEqualTo("valeur-par-defaut-adapter");
         assertThat(definition.getScope()).isEqualTo(Scope.PROTOTYPE);
         assertThat(definition.getOs()).containsExactly(OS.LINUX);
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     // -------------------------------------------------------------------------

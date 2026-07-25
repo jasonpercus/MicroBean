@@ -16,7 +16,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface OpenApiGroup {
 
-    String name();
-
-    String path();
+    String value();
 }

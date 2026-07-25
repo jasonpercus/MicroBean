@@ -20,6 +20,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Optional;
 import com.jasonpercus.microbean.api.Adapter;
 import com.jasonpercus.microbean.api.Bean;
 import com.jasonpercus.microbean.api.OS;
@@ -134,6 +135,22 @@ public class BeanDefinition<T> {
     }
 
     /**
+     * Construit une définition de singleton pré-instancié.
+     *
+     * @param type type exposé dans le contexte
+     * @param instance instance à réutiliser pour toutes les résolutions
+     * @param name nom explicite du bean
+     */
+    public BeanDefinition(Class<T> type, T instance, String name) {
+        this.type = type;
+        this.factory = new BeanFactory<>(instance);
+        this.name = Optional.ofNullable(name).map(String::trim).orElse("");
+        this.primary = false;
+        this.scope = SINGLETON;
+        this.os = new OS[]{ALL};
+    }
+
+    /**
      * Crée une instance du bean via la factory associée.
      *
      * @return instance du bean
@@ -231,7 +248,7 @@ public class BeanDefinition<T> {
                 }
             }
 
-            assert adapterAnnotation != null : "Service annotation should not be null";
+            assert adapterAnnotation != null : "Adapter annotation should not be null";
             return new OtherValues(adapterAnnotation.scope(), adapterAnnotation.name(), adapterAnnotation.os());
         }
     }

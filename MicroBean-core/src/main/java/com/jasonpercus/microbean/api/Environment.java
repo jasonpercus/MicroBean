@@ -77,6 +77,15 @@ public class Environment {
      * @return les propriétés de configuration
      */
     public Map<String, Object> getProperties() {
+        return properties;
+    }
+
+    /**
+     * Retourne les propriétés aplaties de configuration de l'application.
+     *
+     * @return les propriétés de configuration
+     */
+    public Map<String, Object> getFlatProperties() {
         return flatProperties;
     }
 

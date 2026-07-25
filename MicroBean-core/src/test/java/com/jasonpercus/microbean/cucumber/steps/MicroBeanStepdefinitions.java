@@ -26,9 +26,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -110,21 +112,21 @@ public class MicroBeanStepdefinitions {
 
     @Given("un contexte Processor initialisé")
     public void un_contexte_processor_initialise() {
-        this.context = new Context();
+        this.context = createContext();
         this.classes = Set.of();
         this.caughtException = null;
     }
 
     @Given("un contexte BeanDefinition initialisé")
     public void un_contexte_beandefinition_initialise() {
-        this.context = new Context();
+        this.context = createContext();
         this.definition = null;
         this.caughtException = null;
     }
 
     @Given("un contexte BeanFactory initialisé")
     public void un_contexte_beanfactory_initialise() {
-        this.context = new Context();
+        this.context = createContext();
         this.beanFactoryResult = null;
         this.caughtException = null;
         BF_Fixtures.reset();
@@ -132,7 +134,7 @@ public class MicroBeanStepdefinitions {
 
     @Given("un contexte Context initialisé")
     public void un_contexte_context_initialise() {
-        this.context = new Context();
+        this.context = createContext();
         this.beanFactoryResult = null;
         this.caughtException = null;
     }
@@ -926,6 +928,11 @@ public class MicroBeanStepdefinitions {
         }
 
         return manyThread;
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     private static void saveInProperties(String[] args) {

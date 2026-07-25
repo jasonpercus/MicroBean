@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.jasonpercus.microbean</groupId>
         <artifactId>microbean-parent</artifactId>
-        <version>1.2.0-SNAPSHOT</version>
+        <version>1.3.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -17,7 +17,17 @@
         <!-- MicroBean Framework -->
         <dependency>
             <groupId>com.jasonpercus.microbean</groupId>
+            <artifactId>microbean-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.jasonpercus.microbean</groupId>
             <artifactId>microbean-server-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.jasonpercus.microbean</groupId>
+            <artifactId>microbean-rest</artifactId>
         </dependency>
 
         <!-- Autres dépendances -->

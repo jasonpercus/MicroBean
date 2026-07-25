@@ -10,11 +10,11 @@ package com.jasonpercus.microbean.infrastructure.factory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.lang.reflect.Field;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import java.util.Set;
+import java.util.TreeSet;
 import com.jasonpercus.microbean.MicroBean;
 import com.jasonpercus.microbean.api.Adapter;
 import com.jasonpercus.microbean.api.Environment;
@@ -22,6 +22,9 @@ import com.jasonpercus.microbean.api.OS;
 import com.jasonpercus.microbean.api.Primary;
 import com.jasonpercus.microbean.api.Scope;
 import com.jasonpercus.microbean.api.Service;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 @DisplayName("Tests unitaires de la classe Context")
 class ContextTest {
@@ -47,7 +50,7 @@ class ContextTest {
     void doit_retourner_un_bean_par_type_quand_il_est_enregistre() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
 
         // When
@@ -62,7 +65,7 @@ class ContextTest {
     void doit_retourner_la_meme_instance_quand_un_singleton_pre_instancie_est_enregistre() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Environment environment = new Environment(new String[]{"--debug"});
         context.registerSingleton(Environment.class, environment);
 
@@ -81,7 +84,7 @@ class ContextTest {
     void doit_retourner_un_bean_par_nom_et_type_attendu() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceNomme.class, context));
 
         // When
@@ -96,7 +99,7 @@ class ContextTest {
     void doit_echouer_quand_aucun_bean_n_est_trouve_pour_un_type() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When & Then
         assertThatThrownBy(() -> context.getBean(ServiceSimple.class))
@@ -109,7 +112,7 @@ class ContextTest {
     void doit_echouer_quand_la_liste_de_beans_par_type_existe_mais_est_vide() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         forceEmptyTypeBucket(context, ServiceSimple.class);
 
         // When & Then
@@ -123,7 +126,7 @@ class ContextTest {
     void doit_echouer_quand_validateresolvable_recoit_une_liste_de_type_vide() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         forceEmptyTypeBucket(context, ServiceSimple.class);
 
         // When & Then
@@ -137,7 +140,7 @@ class ContextTest {
     void doit_echouer_quand_aucun_bean_n_est_trouve_pour_un_nom() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When & Then
         assertThatThrownBy(() -> context.getBean(ServiceSimple.class, "inconnu"))
@@ -150,7 +153,7 @@ class ContextTest {
     void doit_echouer_quand_la_liste_de_beans_par_nom_existe_mais_est_vide() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         forceEmptyNameBucket(context, "service-vide");
 
         // When & Then
@@ -164,7 +167,7 @@ class ContextTest {
     void doit_echouer_quand_validateresolvable_recoit_une_liste_de_nom_vide() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         forceEmptyNameBucket(context, "service-vide");
 
         // When & Then
@@ -178,7 +181,7 @@ class ContextTest {
     void doit_echouer_quand_le_type_attendu_ne_correspond_pas_au_bean_nomme() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceNomme.class, context));
 
         // When & Then
@@ -192,7 +195,7 @@ class ContextTest {
     void doit_echouer_quand_validateresolvable_trouve_un_nom_mais_aucun_type_assignable() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceNomme.class, context));
 
         // When & Then
@@ -206,7 +209,7 @@ class ContextTest {
     void doit_resoudre_le_bean_primaire_quand_plusieurs_candidats_existent() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSecondaire.class, context));
         context.register(new BeanDefinition<>(ServicePrimaire.class, context));
 
@@ -222,7 +225,7 @@ class ContextTest {
     void doit_echouer_quand_plusieurs_candidats_existent_sans_primaire() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSansPrimaryUn.class, context));
         context.register(new BeanDefinition<>(ServiceSansPrimaryDeux.class, context));
 
@@ -238,7 +241,7 @@ class ContextTest {
 
         // Given
         System.setProperty(MicroBean.PROPERTY_MICROBEAN_OS, OS.LINUX.name());
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(AdapterWindows.class, context));
 
         // When & Then
@@ -252,7 +255,7 @@ class ContextTest {
     void doit_retourner_la_meme_instance_pour_un_singleton() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
 
         // When
@@ -268,7 +271,7 @@ class ContextTest {
     void doit_retourner_des_instances_differentes_pour_un_prototype() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServicePrototype.class, context));
 
         // When
@@ -284,7 +287,7 @@ class ContextTest {
     void doit_enregistrer_le_bean_sur_son_interface_et_sa_superclasse() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceAvecHeritage.class, context));
 
         // When
@@ -301,7 +304,7 @@ class ContextTest {
     void doit_enregistrer_le_bean_sur_la_superclasse_quand_register_recoit_une_definition() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> definition = new BeanDefinition<>(ServiceAvecHeritage.class, context);
 
         // When
@@ -317,7 +320,7 @@ class ContextTest {
     void doit_enregistrer_le_bean_sur_la_superclasse_quand_register_recoit_un_type_explicite() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> definition = new BeanDefinition<>(ServiceAvecHeritage.class, context);
 
         // When
@@ -333,7 +336,7 @@ class ContextTest {
     void doit_valider_la_resolvabilite_par_type_et_par_nom() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceNomme.class, context));
 
         // When
@@ -350,7 +353,7 @@ class ContextTest {
     void doit_echouer_si_validateresolvable_ne_trouve_pas_le_type_ou_le_nom() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When & Then
         assertThatThrownBy(() -> context.validateResolvable(ServiceSimple.class))
@@ -367,7 +370,7 @@ class ContextTest {
     void doit_retourner_les_beans_primaires_via_la_methode_utilitaire() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> primaire = new BeanDefinition<>(ServicePrimaire.class, context);
         BeanDefinition<?> secondaire = new BeanDefinition<>(ServiceSecondaire.class, context);
 
@@ -383,7 +386,7 @@ class ContextTest {
     void doit_filtrer_les_beans_assignables_au_type_attendu() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> service = new BeanDefinition<>(ServiceSimple.class, context);
         BeanDefinition<?> prototype = new BeanDefinition<>(ServicePrototype.class, context);
 
@@ -399,7 +402,7 @@ class ContextTest {
     void doit_retourner_le_premier_bean_de_la_liste_via_la_methode_utilitaire() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> first = new BeanDefinition<>(ServiceSimple.class, context);
         BeanDefinition<?> second = new BeanDefinition<>(ServicePrototype.class, context);
 
@@ -415,7 +418,7 @@ class ContextTest {
     void doit_retourner_l_instance_en_cache_singleton_quand_elle_existe() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> definition = new BeanDefinition<>(ServiceSimple.class, context);
         Object sentinel = new ServiceSimple();
         context.addBeanDefinitionInSingletonCache(definition, sentinel);
@@ -449,7 +452,7 @@ class ContextTest {
     void doit_creer_et_mettre_en_cache_un_singleton_quand_le_cache_est_vide() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> definition = new BeanDefinition<>(ServiceSimple.class, context);
 
         // When
@@ -466,7 +469,7 @@ class ContextTest {
     void doit_ignorer_l_enregistrement_de_superclasse_quand_le_type_de_definition_est_une_interface() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         ConfigurationTypeInterface config = new ConfigurationTypeInterface();
         BeanDefinition<?> definition = new BeanDefinition<>(
                 config,
@@ -486,7 +489,7 @@ class ContextTest {
     void doit_ignorer_l_enregistrement_de_superclasse_quand_register_recoit_un_type_interface() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         BeanDefinition<?> definition = new BeanDefinition<>(ServiceSimple.class, context);
 
         // When
@@ -501,7 +504,7 @@ class ContextTest {
     void doit_creer_une_seule_fois_le_singleton_quand_le_cache_etait_null() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         CountingSingletonService.counter = 0;
         BeanDefinition<?> definition = new BeanDefinition<>(CountingSingletonService.class, context);
 
@@ -519,7 +522,7 @@ class ContextTest {
     void doit_retourner_les_instances_dont_la_classe_est_annotee_avec_l_annotation_donnee() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
 
         // When
@@ -535,7 +538,7 @@ class ContextTest {
     void doit_retourner_liste_vide_de_beans_quand_aucune_classe_ne_porte_l_annotation_donnee() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
 
         // When
@@ -550,7 +553,7 @@ class ContextTest {
     void doit_retourner_les_types_dont_la_classe_est_annotee_avec_l_annotation_donnee() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
 
         // When
@@ -566,7 +569,7 @@ class ContextTest {
     void doit_retourner_liste_vide_de_types_quand_aucune_classe_ne_porte_l_annotation_donnee() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
 
         // When
@@ -581,7 +584,7 @@ class ContextTest {
     void doit_retourner_les_instances_de_plusieurs_beans_annotes_avec_la_meme_annotation() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
         context.register(new BeanDefinition<>(ServicePrototype.class, context));
 
@@ -599,7 +602,7 @@ class ContextTest {
     void doit_retourner_les_types_de_plusieurs_beans_annotes_avec_la_meme_annotation() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(ServiceSimple.class, context));
         context.register(new BeanDefinition<>(ServicePrototype.class, context));
 
@@ -609,6 +612,130 @@ class ContextTest {
         // Then
         assertThat(types).hasSize(2);
         assertThat(types).contains(ServiceSimple.class, ServicePrototype.class);
+    }
+
+    @Test
+    @DisplayName("Doit retourner un ensemble vide de classes components quand le contexte est créé sans classes")
+    void doit_retourner_un_ensemble_vide_de_composants_quand_le_contexte_est_cree_sans_classes() {
+
+        // Given
+        Context context = createContext();
+
+        // When
+        Set<Class<?>> result = context.getComponentClasses();
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Doit retourner les classes components passées au constructeur")
+    void doit_retourner_les_classes_components_passees_au_constructeur() {
+
+        // Given
+        TreeSet<Class<?>> components = new TreeSet<>(Comparator.comparing(Class::getCanonicalName));
+        components.add(ServiceSimple.class);
+        components.add(ServicePrototype.class);
+        Context context = new Context(components, new TreeSet<>(Comparator.comparing(Class::getCanonicalName)));
+
+        // When
+        Set<Class<?>> result = context.getComponentClasses();
+
+        // Then
+        assertThat(result).containsExactlyInAnyOrder(ServiceSimple.class, ServicePrototype.class);
+    }
+
+    @Test
+    @DisplayName("Doit retourner un ensemble non modifiable pour getComponentClasses")
+    void doit_retourner_un_ensemble_non_modifiable_pour_getcomponentclasses() {
+
+        // Given
+        TreeSet<Class<?>> components = new TreeSet<>(Comparator.comparing(Class::getCanonicalName));
+        components.add(ServiceSimple.class);
+        Context context = new Context(components, new TreeSet<>(Comparator.comparing(Class::getCanonicalName)));
+
+        // When
+        Set<Class<?>> result = context.getComponentClasses();
+
+        // Then
+        assertThat(result).containsExactly(ServiceSimple.class);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class,
+                () -> result.add(ServicePrototype.class)
+        );
+    }
+
+    @Test
+    @DisplayName("Doit retourner un ensemble vide de autres classes quand le contexte est créé sans autres classes")
+    void doit_retourner_un_ensemble_vide_de_autres_classes_quand_le_contexte_est_cree_sans_autres_classes() {
+
+        // Given
+        Context context = createContext();
+
+        // When
+        Set<Class<?>> result = context.getOtherClasses();
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Doit retourner les autres classes passées au constructeur")
+    void doit_retourner_les_autres_classes_passees_au_constructeur() {
+
+        // Given
+        TreeSet<Class<?>> others = new TreeSet<>(Comparator.comparing(Class::getCanonicalName));
+        others.add(ServiceNomme.class);
+        others.add(ServiceAvecHeritage.class);
+        Context context = new Context(new TreeSet<>(Comparator.comparing(Class::getCanonicalName)), others);
+
+        // When
+        Set<Class<?>> result = context.getOtherClasses();
+
+        // Then
+        assertThat(result).containsExactlyInAnyOrder(ServiceNomme.class, ServiceAvecHeritage.class);
+    }
+
+    @Test
+    @DisplayName("Doit retourner un ensemble non modifiable pour getOtherClasses")
+    void doit_retourner_un_ensemble_non_modifiable_pour_getotherclasses() {
+
+        // Given
+        TreeSet<Class<?>> others = new TreeSet<>(Comparator.comparing(Class::getCanonicalName));
+        others.add(ServiceNomme.class);
+        Context context = new Context(new TreeSet<>(Comparator.comparing(Class::getCanonicalName)), others);
+
+        // When
+        Set<Class<?>> result = context.getOtherClasses();
+
+        // Then
+        assertThat(result).containsExactly(ServiceNomme.class);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class,
+                () -> result.add(ServiceSimple.class)
+        );
+    }
+
+    @Test
+    @DisplayName("Doit maintenir l'indépendance entre componentClasses et otherClasses")
+    void doit_maintenir_l_independance_entre_component_et_other_classes() {
+
+        // Given
+        TreeSet<Class<?>> components = new TreeSet<>(Comparator.comparing(Class::getCanonicalName));
+        components.add(ServiceSimple.class);
+        TreeSet<Class<?>> others = new TreeSet<>(Comparator.comparing(Class::getCanonicalName));
+        others.add(ServiceNomme.class);
+        Context context = new Context(components, others);
+
+        // When
+        Set<Class<?>> componentResult = context.getComponentClasses();
+        Set<Class<?>> otherResult = context.getOtherClasses();
+
+        // Then
+        assertThat(componentResult).doesNotContain(ServiceNomme.class);
+        assertThat(otherResult).doesNotContain(ServiceSimple.class);
     }
 
     private static void restorePropertyMicroBeanOS(String value) {
@@ -632,6 +759,11 @@ class ContextTest {
         field.setAccessible(true);
         Map<String, List<BeanDefinition<?>>> map = (Map<String, List<BeanDefinition<?>>>) field.get(context);
         map.put(name, context.createBeanList(List.class));
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     interface ContratService {
@@ -710,6 +842,10 @@ class ContextTest {
         private int getCacheCallCount;
         Object forcedSingleton;
         boolean createBeanCalled;
+
+        ContextAvecSecondCheckSingleton() {
+            super(new TreeSet<>(Comparator.comparing(Class::getCanonicalName)), new TreeSet<>(Comparator.comparing(Class::getCanonicalName)));
+        }
 
         void forceSingletonAfterFirstRead(Object singleton) {
             this.forcedSingleton = singleton;

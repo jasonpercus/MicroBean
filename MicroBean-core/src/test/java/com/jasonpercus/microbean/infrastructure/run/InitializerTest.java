@@ -7,6 +7,8 @@ package com.jasonpercus.microbean.infrastructure.run;
  * See LICENSE file in the project root for more information.
  */
 
+import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_ADAPTERS;
+import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_COMPONENTS;
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_ENTRYPOINTS;
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_SERVICES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -133,7 +135,7 @@ class InitializerTest {
         Initializer initializer = Initializer.init(AppWithExplicitScanPackagesInitializer.class, new String[0], entryPoints);
 
         // Then
-        assertThat(initializer.getPackagesPathsToScan()).containsExactly("test.pkg.one", "test.pkg.two", PACKAGE_ENTRYPOINTS, PACKAGE_SERVICES);
+        assertThat(initializer.getPackagesPathsToScan()).containsExactly("test.pkg.one", "test.pkg.two", PACKAGE_ENTRYPOINTS, PACKAGE_SERVICES, PACKAGE_ADAPTERS, PACKAGE_COMPONENTS);
     }
 
     @Test
@@ -145,7 +147,9 @@ class InitializerTest {
         String[] expectedScanPackages = new String[] {
                 "com.jasonpercus.microbean.infrastructure.run.initializer",
                 PACKAGE_ENTRYPOINTS,
-                PACKAGE_SERVICES
+                PACKAGE_SERVICES,
+                PACKAGE_ADAPTERS,
+                PACKAGE_COMPONENTS
         };
 
         // When
@@ -209,7 +213,7 @@ class InitializerTest {
         initializer.manageConfigurationProperties(environment);
 
         // Then
-        assertThat(environment.getProperties()).containsKeys(
+        assertThat(environment.getFlatProperties()).containsKeys(
                 "server.host-name",
                 "server.port",
                 "feature.metrics-enabled",
@@ -234,7 +238,7 @@ class InitializerTest {
         initializer.manageConfigurationProperties(environment);
 
         // Then
-        assertThat(environment.getProperties()).containsKeys(
+        assertThat(environment.getFlatProperties()).containsKeys(
                 "application.name",
                 "application.port",
                 "application.description",

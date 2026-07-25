@@ -7,6 +7,8 @@ package com.jasonpercus.microbean.infrastructure.run;
  * See LICENSE file in the project root for more information.
  */
 
+import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_ADAPTERS;
+import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_COMPONENTS;
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_ENTRYPOINTS;
 import static com.jasonpercus.microbean.infrastructure.Constants.PACKAGE_SERVICES;
 import java.io.IOException;
@@ -14,13 +16,16 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.jasonpercus.microbean.api.ApplicationEntryPoint;
 import com.jasonpercus.microbean.api.Environment;
@@ -125,9 +130,13 @@ public class Initializer {
 
         manageConfigurationProperties(environment);
 
-        classes = new ClassScanner(packages, args).searchAnnotatedClass();
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        classes = new TreeSet<>(classComparator);
+        TreeSet<Class<?>> otherClasses = new TreeSet<>(classComparator);
 
-        context = new Context();
+        new ClassScanner(packages, args).searchAnnotatedClass(classes, otherClasses);
+
+        context = new Context((TreeSet<Class<?>>) classes, otherClasses);
         context.registerSingleton(Environment.class, environment);
     }
 
@@ -183,6 +192,12 @@ public class Initializer {
 
         if (!packages.contains(PACKAGE_SERVICES))
             packages.add(PACKAGE_SERVICES);
+
+        if (!packages.contains(PACKAGE_ADAPTERS))
+            packages.add(PACKAGE_ADAPTERS);
+
+        if(!packages.contains(PACKAGE_COMPONENTS))
+            packages.add(PACKAGE_COMPONENTS);
 
         return packages.toArray(new String[0]);
     }
@@ -425,6 +440,8 @@ public class Initializer {
     static Map<String, Object> deserializeToMap(URL url, ObjectMapper objectMapper, String path) {
         try (InputStream inputStream = url.openStream()) {
             return objectMapper.readValue(inputStream, new TypeReference<>() {});
+        } catch (MismatchedInputException e) {
+            return null;
         } catch (IOException e) {
             throw ExceptionManager.failedToLoadConfigurationProperties(path, e);
         }

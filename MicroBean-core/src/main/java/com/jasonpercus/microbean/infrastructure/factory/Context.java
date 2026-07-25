@@ -15,13 +15,18 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import com.jasonpercus.microbean.api.Scope;
+import com.jasonpercus.microbean.infrastructure.api.ModuleInit;
 import com.jasonpercus.microbean.infrastructure.helpers.OperatingSystemHelper;
 
 /**
@@ -39,6 +44,16 @@ import com.jasonpercus.microbean.infrastructure.helpers.OperatingSystemHelper;
  * </ul>
  */
 public class Context {
+
+    /**
+     * Liste des classes (annotées) "components" détectées par le scanner.
+     */
+    private final SortedSet<Class<?>> componentClasses;
+
+    /**
+     * Liste des autres classes (annotées) détectées par le scanner (non components).
+     */
+    private final SortedSet<Class<?>> otherClasses;
 
     /**
      * Index des définitions de beans par type.
@@ -61,13 +76,45 @@ public class Context {
     private final Map<BeanDefinition<?>, Object> SINGLETON_LOCKS = new ConcurrentHashMap<>();
 
     /**
+     * Construit un contexte d'injection.
+     *
+     * @param componentClasses classes annotées "component" détectées par le scanner
+     * @param otherClasses     autres classes annotées détectées par le scanner (non components)
+     */
+    public Context(TreeSet<Class<?>> componentClasses, TreeSet<Class<?>> otherClasses) {
+        this.componentClasses = Collections.unmodifiableSortedSet(componentClasses);
+        this.otherClasses = Collections.unmodifiableSortedSet(otherClasses);
+    }
+
+    /**
+     * Retourne l'ensemble des classes annotées "component" détectées par le scanner.
+     *
+     * @return l'ensemble des classes annotées "component"
+     */
+    public Set<Class<?>> getComponentClasses() {
+        return componentClasses;
+    }
+
+    /**
+     * Retourne l'ensemble des autres classes annotées (et autorisées par les classes annotées {@link ModuleInit})
+     * détectées par le scanner (non components).
+     *
+     * @return l'ensemble des autres classes annotées
+     */
+    public Set<Class<?>> getOtherClasses() {
+        return otherClasses;
+    }
+
+    /**
      * Renvoie toutes les instances ayant leur classe annotée
      *
      * @param annotationType type d'annotation à rechercher
      * @return liste des instances correspondantes
      */
     public List<Object> getBeansByAnnotation(Class<? extends Annotation> annotationType) {
+
         Set<Object> beans = Collections.newSetFromMap(new IdentityHashMap<>());
+
         for (List<BeanDefinition<?>> definitions : BEANS_BY_TYPE.values()) {
             for (BeanDefinition<?> definition : definitions) {
                 Class<?> beanClass = definition.getType();
@@ -75,7 +122,10 @@ public class Context {
                     beans.add(getBean(beanClass));
             }
         }
-        return beans.stream().toList();
+
+        return beans.stream()
+                .sorted(getClassNameComparator())
+                .toList();
     }
 
     /**
@@ -85,7 +135,9 @@ public class Context {
      * @return liste des types correspondants
      */
     public List<Class<?>> getBeanTypesByAnnotation(Class<? extends Annotation> annotationType) {
+
         Set<Class<?>> beanTypes = new HashSet<>();
+
         for (List<BeanDefinition<?>> definitions : BEANS_BY_TYPE.values()) {
             for (BeanDefinition<?> definition : definitions) {
                 Class<?> beanClass = definition.getType();
@@ -93,7 +145,10 @@ public class Context {
                     beanTypes.add(beanClass);
             }
         }
-        return beanTypes.stream().toList();
+
+        return beanTypes.stream()
+                .sorted(getClassNameComparator())
+                .toList();
     }
 
     /**
@@ -104,11 +159,36 @@ public class Context {
      * @throws RuntimeException si aucun bean n'est trouvé ou en cas d'ambiguïté
      */
     public <O> O getBean(Class<?> type) {
+        return getBean(type, () -> {
+            throw noBeanFoundForType(type);
+        });
+    }
+
+    /**
+     * Résout un bean par type silencieusement (renvoie null si non trouvé).
+     *
+     * @param type type demandé
+     * @return instance résolue ou null si non trouvée
+     * @throws RuntimeException en cas d'ambiguïté
+     */
+    public <O> O getBeanSilently(Class<?> type) {
+        return getBean(type, () -> null);
+    }
+
+    /**
+     * Résout un bean par type.
+     *
+     * @param type type demandé
+     * @param callbackIfNotExists callback à exécuter si aucun bean n'est trouvé
+     * @return instance résolue
+     * @throws RuntimeException en cas d'ambiguïté
+     */
+    public <O> O getBean(Class<?> type, Supplier<O> callbackIfNotExists) {
 
         List<BeanDefinition<?>> beanDefinitions = BEANS_BY_TYPE.get(type);
 
         if (beanDefinitions == null || beanDefinitions.isEmpty())
-            throw noBeanFoundForType(type);
+            return callbackIfNotExists.get();
 
         BeanDefinition<?> beanDefinition = resolve(beanDefinitions, type);
         return createSingletonOrPrototypeBean(beanDefinition);
@@ -123,15 +203,42 @@ public class Context {
      * @throws RuntimeException si le nom est introuvable, incompatible, ou ambigu
      */
     public <O> O getBean(Class<?> type, String name) {
+        return getBean(type, name, () -> {
+            throw noBeanFoundForName(name);
+        });
+    }
+
+    /**
+     * Résout un bean par nom silencieusement (renvoie null si non trouvé), puis vérifie sa compatibilité avec le type attendu.
+     *
+     * @param type type attendu
+     * @param name nom du bean
+     * @return instance résolue ou null si non trouvée
+     * @throws RuntimeException si le nom est introuvable, incompatible, ou ambigu
+     */
+    public <O> O getBeanSilently(Class<?> type, String name) {
+        return getBean(type, name, () -> null);
+    }
+
+    /**
+     * Résout un bean par nom, puis vérifie sa compatibilité avec le type attendu.
+     *
+     * @param type type attendu
+     * @param name nom du bean
+     * @param callbackIfNotExists callback à exécuter si aucun bean n'est trouvé
+     * @return instance résolue
+     * @throws RuntimeException si le nom est introuvable, incompatible, ou ambigu
+     */
+    public <O> O getBean(Class<?> type, String name, Supplier<O> callbackIfNotExists) {
         List<BeanDefinition<?>> beanDefinitions = BEANS_BY_NAME.get(name);
 
         if (beanDefinitions == null || beanDefinitions.isEmpty())
-            throw noBeanFoundForName(name);
+            return callbackIfNotExists.get();
 
         List<BeanDefinition<?>> typedBeanDefinitions = getBeanDefinitionsAssignableToType(beanDefinitions, type);
 
         if (typedBeanDefinitions.isEmpty())
-            throw noBeanFoundForName(name);
+            return callbackIfNotExists.get();
 
         BeanDefinition<?> beanDefinition = resolve(typedBeanDefinitions, type);
         return createSingletonOrPrototypeBean(beanDefinition);
@@ -228,6 +335,18 @@ public class Context {
      */
     public <T> void registerSingleton(Class<T> type, T instance) {
         register(new BeanDefinition<>(type, instance));
+    }
+
+    /**
+     * Enregistre une instance déjà créée comme singleton injectable.
+     *
+     * @param type type exposé dans le contexte
+     * @param instance instance singleton à enregistrer
+     * @param name nom du bean
+     * @param <T> type de l'instance
+     */
+    public <T> void registerSingleton(Class<T> type, T instance, String name) {
+        register(new BeanDefinition<>(type, instance, name));
     }
 
     /**
@@ -472,5 +591,18 @@ public class Context {
      */
     static BeanDefinition<?> getFirstBeanDefinitionInList(List<BeanDefinition<?>> beanDefinitions) {
         return beanDefinitions.get(0);
+    }
+
+    /**
+     * Comparator pour trier les instances par nom de classe.
+     *
+     * @return Comparator pour trier les instances par nom de classe.
+     */
+    static Comparator<Object> getClassNameComparator() {
+        return (object1, object2) -> {
+            String className1 = object1.getClass().getCanonicalName();
+            String className2 = object2.getClass().getCanonicalName();
+            return className1.compareTo(className2);
+        };
     }
 }

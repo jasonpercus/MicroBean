@@ -14,9 +14,8 @@ import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import java.util.Comparator;
+import java.util.TreeSet;
 import com.jasonpercus.microbean.MicroBean;
 import com.jasonpercus.microbean.api.Bean;
 import com.jasonpercus.microbean.api.Environment;
@@ -25,6 +24,9 @@ import com.jasonpercus.microbean.api.PostConstruct;
 import com.jasonpercus.microbean.api.Profile;
 import com.jasonpercus.microbean.api.Service;
 import com.jasonpercus.microbean.infrastructure.helpers.StringHelper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 @DisplayName("Tests unitaires de la classe BeanFactory")
 class BeanFactoryTest {
@@ -65,7 +67,7 @@ class BeanFactoryTest {
     void doit_creer_un_bean_depuis_une_methode_bean_et_injecter_ses_dependances() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(DependanceService.class, context));
 
         ConfigurationFactoryFixture fixture = new ConfigurationFactoryFixture();
@@ -86,7 +88,7 @@ class BeanFactoryTest {
     void doit_lever_une_exception_si_l_invocation_de_la_methode_bean_echoue() throws Exception {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         ConfigurationFactoryFixture fixture = new ConfigurationFactoryFixture();
         Method method = ConfigurationFactoryFixture.class.getDeclaredMethod("creer_en_echec");
         BeanFactory<Object> beanFactory = new BeanFactory<>(fixture, method, context);
@@ -103,7 +105,7 @@ class BeanFactoryTest {
     void doit_creer_un_bean_via_le_constructeur_ayant_le_plus_de_parametres() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(DependanceService.class, context));
 
         // When
@@ -119,7 +121,7 @@ class BeanFactoryTest {
     void doit_resoudre_une_dependance_nommee_avec_named() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(DependanceNommeeService.class, context));
 
         // When
@@ -136,7 +138,7 @@ class BeanFactoryTest {
     void doit_injecter_environment_dans_un_bean_quand_il_est_enregistre_dans_le_context() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         Environment environment = new Environment(new String[]{"--profile=dev"});
         context.registerSingleton(Environment.class, environment);
 
@@ -154,7 +156,7 @@ class BeanFactoryTest {
     void doit_executer_les_methodes_postconstruct_de_la_classe_superclasse_et_interface() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         MultiPostConstructService bean = BeanFactory.create(MultiPostConstructService.class, context);
@@ -172,7 +174,7 @@ class BeanFactoryTest {
 
         // Given
         System.setProperty("app.profile", "prod");
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         ProfiledPostConstructService bean = BeanFactory.create(ProfiledPostConstructService.class, context);
@@ -187,7 +189,7 @@ class BeanFactoryTest {
     void doit_lever_une_exception_quand_une_methode_postconstruct_echoue() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When
         Throwable throwable = org.assertj.core.api.ThrowableAssert.catchThrowable(
@@ -205,7 +207,7 @@ class BeanFactoryTest {
     void doit_lever_une_exception_quand_le_constructeur_du_bean_echoue() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
 
         // When & Then
         assertThatThrownBy(() -> BeanFactory.create(ConstructorEnErreurService.class, context))
@@ -219,7 +221,7 @@ class BeanFactoryTest {
     void doit_detecter_une_dependance_cyclique() {
 
         // Given
-        Context context = new Context();
+        Context context = createContext();
         context.register(new BeanDefinition<>(CyclicService.class, context));
 
         // When & Then
@@ -381,6 +383,11 @@ class BeanFactoryTest {
         }
 
         throw new IllegalStateException("Classe interne MethodSignature introuvable");
+    }
+
+    private static Context createContext() {
+        Comparator<Class<?>> classComparator = Comparator.comparing(Class::getName);
+        return new Context(new TreeSet<>(classComparator), new TreeSet<>(classComparator));
     }
 
     @SuppressWarnings("all")

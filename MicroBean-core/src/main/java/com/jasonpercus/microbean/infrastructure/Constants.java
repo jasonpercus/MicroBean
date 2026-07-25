@@ -8,6 +8,7 @@ package com.jasonpercus.microbean.infrastructure;
  */
 
 import com.jasonpercus.microbean.MicroBean;
+import com.jasonpercus.microbean.api.Adapter;
 import com.jasonpercus.microbean.api.ApplicationEntryPoint;
 import com.jasonpercus.microbean.api.Bean;
 import com.jasonpercus.microbean.api.EntryPointService;
@@ -22,6 +23,21 @@ import com.jasonpercus.microbean.infrastructure.factory.Context;
 public class Constants {
 
     /**
+     * Localhost.
+     */
+    public static final String LOCALHOST = "localhost";
+
+    /**
+     * Port par défaut pour les serveurs HTTP.
+     */
+    public static final int LOCALHOST_PORT = 8080;
+
+    /**
+     * Nom de la propriété par défaut dans le fichier de configuration utilisé pour certains modules du framework.
+     */
+    public static final String DEFAULT_PROPERTY_NAME = "microbean";
+
+    /**
      * Packages où scanner les {@link EntryPointService} des modules MicroBean.
      */
     public static final String PACKAGE_ENTRYPOINTS = "com.jasonpercus.microbean.entrypoint";
@@ -30,6 +46,16 @@ public class Constants {
      * Packages où scanner les {@link Service} des modules MicroBean.
      */
     public static final String PACKAGE_SERVICES = "com.jasonpercus.microbean.service";
+
+    /**
+     * Packages où scanner les {@link Adapter} des modules MicroBean.
+     */
+    public static final String PACKAGE_ADAPTERS = "com.jasonpercus.microbean.adapter";
+
+    /**
+     * Packages où scanner les {@link Service} ou {@link Adapter} des modules MicroBean.
+     */
+    public static final String PACKAGE_COMPONENTS = "com.jasonpercus.microbean.component";
 
     /**
      * Nom de la propriété système Java contenant le nom de l'OS.
@@ -265,4 +291,29 @@ public class Constants {
      * Message d'erreur indiquant qu'un fichier de configuration n'a pas pu être chargé.
      */
     public static final String FAILED_TO_LOAD_CONFIGURATION_PROPERTIES = "\uD83D\uDEAB Failed to load configuration properties: %s";
+
+    /**
+     * Message d'erreur indiquant qu'un port est déjà utilisé par une autre instance de serveur HTTP.
+     */
+    public static final String PORT_IS_ALREADY_USED_BY_ANOTHER_HTTP_SERVER = "❌ Port %d is already used by another HTTP server instance. Please configure a different port for module '%s'.";
+
+    /**
+     * Message d'erreur indiquant qu'un serveur HTTP n'a pas pu être démarré.
+     */
+    public static final String ERROR_STARTING_HTTP_SERVER = "❌ Error starting HTTP server: %s";
+
+    /**
+     * Message indiquant qu'un serveur HTTP est en cours de démarrage pour un provider donné.
+     */
+    public static final String STARTING_HTTP_SERVER_FOR_PROVIDER = "⚙️ Starting %s HTTP server for provider '%s' on %s:%d with context path %s";
+
+    /**
+     * Message d'erreur indiquant qu'une classe de listener HTTP n'a pas pu être instanciée.
+     */
+    public static final String FAILED_TO_INSTANTIATE_HTTP_REQUESTS_LISTENER_CLASS = "⚠️ Failed to instantiate HttpRequestsListener class: %s";
+
+    /**
+     * Message d'erreur indiquant qu'une classe IModule n'a pas pu être instanciée.
+     */
+    public static final String ERROR_INSTANTIATING_IMODULE_INIT_CLASS = "❌ Error instantiating IModuleInit class: %s";
 }

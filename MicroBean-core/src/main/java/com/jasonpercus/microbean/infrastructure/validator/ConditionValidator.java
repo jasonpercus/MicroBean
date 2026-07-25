@@ -7,8 +7,8 @@ package com.jasonpercus.microbean.infrastructure.validator;
  * See LICENSE file in the project root for more information.
  */
 
-import com.jasonpercus.microbean.api.ConditionEvaluator;
 import com.jasonpercus.microbean.api.Condition;
+import com.jasonpercus.microbean.api.ConditionEvaluator;
 import com.jasonpercus.microbean.infrastructure.exception.ExceptionManager;
 
 /**

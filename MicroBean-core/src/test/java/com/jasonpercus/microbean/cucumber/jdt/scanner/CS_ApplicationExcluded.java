@@ -7,6 +7,7 @@ package com.jasonpercus.microbean.cucumber.jdt.scanner;
  * See LICENSE file in the project root for more information.
  */
 
+import java.util.LinkedHashSet;
 import java.util.Set;
 import com.jasonpercus.microbean.infrastructure.scanner.ClassScanner;
 
@@ -20,7 +21,12 @@ public class CS_ApplicationExcluded {
                 new String[0]
         );
 
-        print(scanner.searchAnnotatedClass());
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
+
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
+
+        print(componentClasses);
     }
 
     private static void print(Set<Class<?>> classes) {

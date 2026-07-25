@@ -13,21 +13,27 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Method;
+import java.util.LinkedHashSet;
 import java.util.Set;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.empty.SimpleClasseWithoutAnnotation;
-import com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded.AnnotationAnnotatedService;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded.AbstractServiceAnnotated;
-import com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded.ValidConcreteServiceWithPackageExcluded;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded.AnnotationAnnotatedService;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded.ServiceInterfaceAnnotated;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded.ValidConcreteServiceWithPackageExcluded;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.invalidated.ServiceProfiledInvalid;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit.FailingModuleInit;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit.InvalidatedServiceWithCustomAnnotation;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit.ModuleInitWithoutIModuleInit;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit.ServiceWithCustomAnnotation;
+import com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit.ValidModuleInit;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.valid.AdapterValid;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.valid.ClasseNotAnnotated;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.valid.ConfigurationValid;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.valid.EntryPointValid;
 import com.jasonpercus.microbean.infrastructure.scanner.fixtures.valid.ServiceValid;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 @DisplayName("Tests unitaires de la classe ClassScanner")
 class ClassScannerTest {
@@ -51,12 +57,14 @@ class ClassScannerTest {
         // Given
         String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.valid"};
         ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
 
         // When
-        Set<Class<?>> result = scanner.searchAnnotatedClass();
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
 
         // Then
-        assertThat(result)
+        assertThat(componentClasses)
                 .contains(ServiceValid.class, AdapterValid.class, ConfigurationValid.class, EntryPointValid.class)
                 .doesNotContain(ClasseNotAnnotated.class);
     }
@@ -68,12 +76,14 @@ class ClassScannerTest {
         // Given
         String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.excluded"};
         ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
 
         // When
-        Set<Class<?>> result = scanner.searchAnnotatedClass();
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
 
         // Then
-        assertThat(result)
+        assertThat(componentClasses)
                 .contains(ValidConcreteServiceWithPackageExcluded.class)
                 .doesNotContain(ServiceInterfaceAnnotated.class)
                 .doesNotContain(AbstractServiceAnnotated.class)
@@ -87,14 +97,16 @@ class ClassScannerTest {
         // Given
         String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.empty"};
         ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
 
         // When
-        Set<Class<?>> result = scanner.searchAnnotatedClass();
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
 
         // Then
-        assertThat(result).isNotNull();
-        assertThat(result).isEmpty();
-        assertThat(result).doesNotContain(SimpleClasseWithoutAnnotation.class);
+        assertThat(componentClasses).isNotNull();
+        assertThat(componentClasses).isEmpty();
+        assertThat(componentClasses).doesNotContain(SimpleClasseWithoutAnnotation.class);
     }
 
     @Test
@@ -105,14 +117,16 @@ class ClassScannerTest {
         System.setProperty("app.profile", "test");
         String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.invalidated"};
         ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
 
         // When
-        Set<Class<?>> result = scanner.searchAnnotatedClass();
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
 
         // Then
-        assertThat(result).isNotNull();
-        assertThat(result).isEmpty();
-        assertThat(result).doesNotContain(ServiceProfiledInvalid.class);
+        assertThat(componentClasses).isNotNull();
+        assertThat(componentClasses).isEmpty();
+        assertThat(componentClasses).doesNotContain(ServiceProfiledInvalid.class);
     }
 
     @Test
@@ -136,6 +150,101 @@ class ClassScannerTest {
         assertThat(runtimeSansTarget).isFalse();
         assertThat(runtimeTargetMethod).isFalse();
         assertThat(runtimeTargetType).isTrue();
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests : getOthersAnnotationsToKeep
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Doit retourner un ensemble vide quand aucun ModuleInit n'est trouvé (null)")
+    void doit_retourner_un_ensemble_vide_quand_moduleInitClassInfo_est_null() throws Exception {
+
+        // Given
+        Method method = ClassScanner.class.getDeclaredMethod("getOthersAnnotationsToKeep", Set.class);
+        method.setAccessible(true);
+        ClassScanner scanner = new ClassScanner(new String[0], new String[0]);
+
+        // When
+        @SuppressWarnings("unchecked")
+        Set<Class<?>> result = (Set<Class<?>>) method.invoke(scanner, (Object) null);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Doit collecter les annotations via un IModuleInit valide")
+    void doit_collecter_les_annotations_via_un_imoduleinit_valide() {
+
+        // Given — le package moduleinit contient ValidModuleInit (@ModuleInit + IModuleInit)
+        String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit"};
+        ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
+
+        // When
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
+
+        // Then — ServiceWithCustomAnnotation est valide (pas de profil), doit être dans componentClasses
+        assertThat(componentClasses).contains(ServiceWithCustomAnnotation.class);
+        // ValidModuleInit est lui-même un @ModuleInit : il ne doit PAS être dans componentClasses
+        assertThat(componentClasses).doesNotContain(ValidModuleInit.class);
+    }
+
+    @Test
+    @DisplayName("Doit ignorer silencieusement une classe @ModuleInit n'implémentant pas IModuleInit")
+    void doit_ignorer_silencieusement_une_classe_moduleinit_sans_imoduleinit() {
+
+        // Given
+        String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit"};
+        ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
+
+        // When — aucune exception ne doit être levée
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
+
+        // Then — ModuleInitWithoutIModuleInit ne doit être dans aucun ensemble
+        assertThat(componentClasses).doesNotContain(ModuleInitWithoutIModuleInit.class);
+        assertThat(otherClasses).doesNotContain(ModuleInitWithoutIModuleInit.class);
+    }
+
+    @Test
+    @DisplayName("Doit absorber l'exception de constructeur d'un IModuleInit défaillant sans propager")
+    void doit_absorber_l_exception_de_constructeur_d_un_imoduleinit_defaillant() {
+
+        // Given — FailingModuleInit lève une RuntimeException dans son constructeur
+        String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit"};
+        ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
+
+        // When & Then — aucune exception ne doit se propager
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
+
+        // Then — FailingModuleInit ne doit être dans aucun ensemble
+        assertThat(componentClasses).doesNotContain(FailingModuleInit.class);
+        assertThat(otherClasses).doesNotContain(FailingModuleInit.class);
+    }
+
+    @Test
+    @DisplayName("Doit placer dans otherClasses une classe invalidée portant une annotation déclarée par IModuleInit")
+    void doit_placer_dans_otherClasses_une_classe_invalidee_portant_une_annotation_declaree_par_imoduleinit() {
+
+        // Given — profil différent de "module-test-profile" pour invalider InvalidatedServiceWithCustomAnnotation
+        String[] packages = {"com.jasonpercus.microbean.infrastructure.scanner.fixtures.moduleinit"};
+        ClassScanner scanner = new ClassScanner(packages, new String[0]);
+        Set<Class<?>> componentClasses = new LinkedHashSet<>();
+        Set<Class<?>> otherClasses = new LinkedHashSet<>();
+
+        // When — aucun profil actif donc @Profile("module-test-profile") invalide
+        scanner.searchAnnotatedClass(componentClasses, otherClasses);
+
+        // Then — la classe invalidée mais portant @CustomComponentAnnotation doit être dans otherClasses
+        assertThat(componentClasses).doesNotContain(InvalidatedServiceWithCustomAnnotation.class);
+        assertThat(otherClasses).contains(InvalidatedServiceWithCustomAnnotation.class);
     }
 
     private static void restoreProperty(String value) {
